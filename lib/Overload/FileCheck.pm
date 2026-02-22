@@ -584,7 +584,10 @@ sub _check {
 
     $file = $_last_call_for if !defined $file && defined $_last_call_for && !defined $_current_mocks->{ $MAP_FC_OP{'stat'} };
     my ( $out, @extra ) = $_current_mocks->{$optype}->($file);
-    $_last_call_for = $file;
+    # Only cache string filenames, not filehandle references.
+    # Storing a ref here prevents the filehandle from being garbage collected,
+    # causing resource leaks (e.g. sockets staying open). See GH #179.
+    $_last_call_for = ref($file) ? undef : $file;
 
     # FIXME return undef when not defined out
 
