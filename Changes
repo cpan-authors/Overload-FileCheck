@@ -2,6 +2,9 @@ Revision history for Overload-FileCheck
 
 {{$NEXT}}
 
+- fix: prevent filehandle reference leak in $_last_call_for
+- fix: spelling typos
+
 0.013     2022-02-23 08:36:12-07:00 America/Denver
 
 - Fix a PL_statcache bug when checking: -l $f || -e _
