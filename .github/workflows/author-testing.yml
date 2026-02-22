@@ -3,7 +3,7 @@ name: author-testing
 on:
   push:
     branches:
-      - "*"
+      - "main"
     tags-ignore:
       - "*"
   pull_request:
@@ -17,26 +17,16 @@ jobs:
       AUTHOR_TESTING: 1
       AUTOMATED_TESTING: 1
       RELEASE_TESTING: 1
-      PERL_CARTON_PATH: $GITHUB_WORKSPACE/local
-
-    strategy:
-      fail-fast: false
-      matrix:
-        perl-version:
-          - "5.30"
 
     container:
-      image: perldocker/perl-tester:${{ matrix.perl-version }}
+      image: perldocker/perl-tester:5.42
 
     steps:
-      - uses: actions/checkout@v1
-      - name: perl -V
-        run: perl -V
+      - uses: actions/checkout@v6
+      - run: perl -V
       - name: Install Author Dependencies
         run: dzil authordeps | cpm install -g --show-build-log-on-failure -
       - name: Install Dependencies
-        run: dzil listdeps | cpanm
-        # cannot use cpm due to https://github.com/skaji/cpm/issues/161
-        #run: dzil listdeps | cpm install -g --show-build-log-on-failure -
+        run: dzil listdeps | cpm install -g --show-build-log-on-failure -
       - name: dzil test
         run: dzil test
