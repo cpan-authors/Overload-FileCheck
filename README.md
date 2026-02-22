@@ -20,9 +20,6 @@ By using mock\_all\_file\_checks you can set a hook function to reply any -X che
 use strict;
 use warnings;
 
-use strict;
-use warnings;
-
 use Test::More;
 use Overload::FileCheck q{:all};
 
