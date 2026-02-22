@@ -13,3 +13,4 @@ Makefile.old
 MANIFEST.bak
 Overload-FileCheck-*
 .build
+local/
