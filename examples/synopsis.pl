@@ -3,9 +3,6 @@
 use strict;
 use warnings;
 
-use strict;
-use warnings;
-
 use Test::More;
 use Overload::FileCheck q{:all};
 
