@@ -14,6 +14,8 @@
 #include <XSUB.h>
 #include <embed.h>
 
+#include <errno.h>
+
 #include "FileCheck.h"
 
 /*
@@ -98,9 +100,15 @@ int _overload_ft_ops() {
 
   /* printf ("######## The result is %d /// OPTYPE is %d\n", check_status, optype); */
 
-  PUTBACK;
-  FREETMPS;
-  LEAVE;
+  /* Save errno before scope cleanup — FREETMPS/LEAVE can trigger
+   * DESTROY or other Perl code that clobbers errno set by _check(). */
+  {
+    int saved_errno = errno;
+    PUTBACK;
+    FREETMPS;
+    LEAVE;
+    errno = saved_errno;
+  }
 
   return check_status;
 }
@@ -135,9 +143,13 @@ SV* _overload_ft_ops_sv() {
 
   /* printf ("######## The result is %d /// OPTYPE is %d\n", check_status, optype); */
 
-  PUTBACK;
-  FREETMPS;
-  LEAVE;
+  {
+    int saved_errno = errno;
+    PUTBACK;
+    FREETMPS;
+    LEAVE;
+    errno = saved_errno;
+  }
 
   return status;
 }
@@ -241,9 +253,13 @@ int _overload_ft_stat(Stat_t *stat, int *size) {
 
   }
 
-  PUTBACK;
-  FREETMPS;
-  LEAVE;
+  {
+    int saved_errno = errno;
+    PUTBACK;
+    FREETMPS;
+    LEAVE;
+    errno = saved_errno;
+  }
 
   return check_status;
 }
