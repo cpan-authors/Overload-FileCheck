@@ -63,7 +63,7 @@ my @STAT_HELPERS = qw{ stat_as_directory stat_as_file stat_as_symlink
 our @EXPORT_OK = (
     qw{
       mock_all_from_stat
-      mock_all_file_checks mock_file_check mock_stat
+      mock_all_file_checks mock_file_check mock_file_check_guard mock_stat
       unmock_file_check unmock_all_file_checks unmock_stat
       },
     @CHECK_STATUS,
@@ -238,6 +238,16 @@ sub mock_file_check {
     _xs_mock_op($optype);
 
     return 1;
+}
+
+sub mock_file_check_guard {
+    my ( $check, $sub ) = @_;
+
+    mock_file_check( $check, $sub );
+
+    ( my $normalized = $check ) =~ s{^-+}{};
+
+    return Overload::FileCheck::Guard->new($normalized);
 }
 
 sub unmock_file_check {
@@ -683,6 +693,36 @@ sub _stat_for {
     return \@stat;
 }
 
+######################################################
+### Scope guard for automatic mock cleanup
+######################################################
+
+package Overload::FileCheck::Guard;
+
+sub new {
+    my ( $class, @checks ) = @_;
+
+    return bless { checks => \@checks, active => 1 }, $class;
+}
+
+sub cancel {
+    my ($self) = @_;
+
+    $self->{active} = 0;
+    return;
+}
+
+sub DESTROY {
+    my ($self) = @_;
+
+    return unless $self->{active};
+    $self->{active} = 0;
+
+    local $@;
+    eval { Overload::FileCheck::unmock_file_check( @{ $self->{checks} } ) };
+    return;
+}
+
 1;
 
 =pod
@@ -973,6 +1013,21 @@ Otherwise returns 1 on success.
   # but can be useful for some testing
   # in that sample all '-e' checks will always return true...
   mock_file_check( '-e' => sub { 1 } )
+
+=head2 mock_file_check_guard( $check, CODE )
+
+Like C<mock_file_check>, but returns a guard object instead of C<1>.
+When the guard goes out of scope (or is otherwise destroyed), the mock is
+automatically removed via C<unmock_file_check>.  This improves test isolation
+by guaranteeing cleanup even if the test dies.
+
+  {
+      my $guard = mock_file_check_guard( '-e' => sub { CHECK_IS_TRUE } );
+      ok( -e "/fake/file", "mocked" );
+  }
+  # -e is automatically unmocked here
+
+Call C<< $guard->cancel >> to prevent the automatic unmock.
 
 =head2 unmock_file_check( $check, [@extra_checks] )
 
