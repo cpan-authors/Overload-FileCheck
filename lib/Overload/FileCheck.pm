@@ -55,7 +55,7 @@ my @STAT_T_IX = qw{
   ST_BLOCKS
 };
 
-my @CHECK_STATUS = qw{CHECK_IS_FALSE CHECK_IS_TRUE FALLBACK_TO_REAL_OP};
+my @CHECK_STATUS = qw{CHECK_IS_FALSE CHECK_IS_TRUE CHECK_IS_NULL FALLBACK_TO_REAL_OP};
 
 my @STAT_HELPERS = qw{ stat_as_directory stat_as_file stat_as_symlink
   stat_as_socket stat_as_chr stat_as_block};
@@ -454,7 +454,16 @@ sub _check {
     # causing resource leaks (e.g. sockets staying open). See GH #179.
     $_last_call_for = ref($file) ? undef : $file;
 
-    if ( defined $out && $OP_CAN_RETURN_INT{$optype} ) {
+    if ( !defined $out ) {
+        # CHECK_IS_NULL: callback returned undef — propagate as undef
+        # so the OP returns undef to the caller (file not found / unknown)
+        if ( !int($!) ) {
+            $! = $DEFAULT_ERRNO{ $REVERSE_MAP{$optype} || 'default' } || $DEFAULT_ERRNO{'default'};
+        }
+        return CHECK_IS_NULL;
+    }
+
+    if ( $OP_CAN_RETURN_INT{$optype} ) {
         return $out;
     }
 

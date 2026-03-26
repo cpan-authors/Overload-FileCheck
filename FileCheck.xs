@@ -66,6 +66,7 @@ OverloadFTOps  *gl_overload_ft = 0;
 *
 *  1 check is true  -> OP returns Yes
 *  0 check is false -> OP returns No
+* -2 check is null  -> OP returns undef (CHECK_IS_NULL)
 * -1 fallback to the original OP
 */
 int _overload_ft_ops() {
@@ -93,7 +94,13 @@ int _overload_ft_ops() {
   if (count != 1)
     croak("No return value from Overload::FileCheck::_check for OP #%d\n", optype);
 
-  check_status = POPi;
+  {
+    SV *result_sv = POPs;
+    if (!SvOK(result_sv))
+      check_status = -2;  /* undef => CHECK_IS_NULL */
+    else
+      check_status = SvIV(result_sv);
+  }
 
   OFC_DEBUG("_overload_ft_ops: result=%d optype=%d\n", check_status, optype);
 
@@ -258,8 +265,9 @@ PP(pp_overload_ft_yes_no) {
   {
     FT_SETUP_dSP_IF_NEEDED;
 
-    if ( check_status == 1 ) FT_RETURNYES;
-    if ( check_status == 0 ) FT_RETURNUNDEF;
+    if ( check_status == 1 )  FT_RETURNYES;
+    if ( check_status == 0 )  FT_RETURNUNDEF;
+    if ( check_status == -2 ) FT_RETURNUNDEF; /* CHECK_IS_NULL */
   }
 
   /* fallback */
@@ -280,6 +288,11 @@ PP(pp_overload_ft_int) {
 
   if ( check_status == -1 )
     return CALL_REAL_OP();
+
+  if ( check_status == -2 ) { /* CHECK_IS_NULL */
+    FT_SETUP_dSP_IF_NEEDED;
+    FT_RETURNUNDEF;
+  }
 
   /* Save errno — sv_setiv() and FT_RETURN_TARG can trigger allocations
    * or other Perl internals that clobber errno. */
@@ -306,6 +319,12 @@ PP(pp_overload_ft_nv) {
   RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV();
 
   status = _overload_ft_ops_sv();
+
+  if ( !SvOK(status) ) { /* CHECK_IS_NULL — undef */
+    SvREFCNT_dec(status);
+    FT_SETUP_dSP_IF_NEEDED;
+    FT_RETURNUNDEF;
+  }
 
   /* Save errno — sv_setnv()/sv_setiv() and FT_RETURN_TARG can trigger
    * allocations or other Perl internals that clobber errno. */
