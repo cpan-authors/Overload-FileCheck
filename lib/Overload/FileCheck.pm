@@ -630,12 +630,12 @@ sub _stat_for {
         blocks  => ST_BLOCKS,
     );
 
-    foreach my $k ( keys %$opts ) {
-        $k = lc($k);
+    foreach my $orig_key ( keys %$opts ) {
+        my $k = lc($orig_key);
         $k =~ s{^st_}{};
         next unless defined $name2ix{$k};
 
-        $stat[ $name2ix{$k} ] = $opts->{$k};
+        $stat[ $name2ix{$k} ] = $opts->{$orig_key};
     }
 
     return \@stat;
