@@ -160,4 +160,16 @@ S_ft_return_bool(pTHX_ SV *ret) {
 
 /*** end of helpers from handy.h ****/
 
+/******************************************************************************/
+/*** errno-safe scope cleanup ***/
+/******************************************************************************/
+
+/* Save errno across PUTBACK/FREETMPS/LEAVE — those can invoke DESTROY or
+ * other Perl code that clobbers errno set by the mock callback. */
+#define LEAVE_PRESERVING_ERRNO() STMT_START { \
+    int _saved_errno = errno; \
+    PUTBACK; FREETMPS; LEAVE; \
+    errno = _saved_errno; \
+} STMT_END
+
 #endif /* XS_FILE_CHECK_H */
