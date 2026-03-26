@@ -139,7 +139,7 @@ my %MAP_STAT_T_IX = (
 );
 
 # op_type_id => check
-my %REVERSE_MAP;
+my %REVERSE_MAP = reverse %MAP_FC_OP;
 
 my %OP_CAN_RETURN_INT   = map { $MAP_FC_OP{$_} => 1 } qw{ s M C A };
 my %OP_IS_STAT_OR_LSTAT = map { $MAP_FC_OP{$_} => 1 } qw{ stat lstat };
@@ -424,12 +424,6 @@ sub unmock_stat {
 }
 
 sub unmock_all_file_checks {
-
-    if ( !scalar %REVERSE_MAP ) {
-        foreach my $k ( keys %MAP_FC_OP ) {
-            $REVERSE_MAP{ $MAP_FC_OP{$k} } = $k;
-        }
-    }
 
     my @mocks = sort map { $REVERSE_MAP{$_} } keys %$_current_mocks;
     return unless scalar @mocks;
