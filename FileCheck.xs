@@ -154,6 +154,7 @@ SV* _overload_ft_ops_sv() {
   if (SvIOK(rsv)) st = SvIV( rsv ); \
   else if (SvUOK(rsv)) st = SvUV( rsv ); \
   else if (SvNOK(rsv)) st = SvNV( rsv ); \
+  else if (SvPOK(rsv) && looks_like_number(rsv)) st = SvNV( rsv ); \
   else croak("Overload::FileCheck - Item %d is not numeric...\n", ix);
 
 
