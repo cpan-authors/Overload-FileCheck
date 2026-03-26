@@ -298,6 +298,7 @@ PP(pp_overload_ft_int) {
 
 PP(pp_overload_ft_nv) {
   SV *status;
+  int saved_errno;
 
   assert( gl_overload_ft );
 
@@ -306,6 +307,10 @@ PP(pp_overload_ft_nv) {
   RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV();
 
   status = _overload_ft_ops_sv();
+
+  /* Save errno — sv_setnv()/sv_setiv() and FT_RETURN_TARG can trigger
+   * allocations or other Perl internals that clobber errno. */
+  saved_errno = errno;
 
   if ( SvIOK(status) && SvIV(status) == -1 ) {
     SvREFCNT_dec(status);
@@ -327,6 +332,7 @@ PP(pp_overload_ft_nv) {
       sv_setiv(TARG, (IV) SvIV(status) );
 
     SvREFCNT_dec(status);
+    errno = saved_errno;
     FT_RETURN_TARG;
   }
 }
