@@ -316,202 +316,70 @@ sub _check_from_stat {
         @lstat = lstat($f_or_fh) if defined $f_or_fh;
     }
 
-    if ( $check eq 'r' ) {
+    # Dispatch table mapping each check letter to its handler.
+    # Closures capture @stat, @lstat, $optype, and $f_or_fh from the enclosing scope.
+    my %dispatch = (
 
-        # -r  File is readable by effective uid/gid.
-        #  return _cando(stat_mode, effective, &PL_statcache)
-        #   return _cando( S_IRUSR, 1 )
+        # Unmock then delegate to _ (effective uid/gid checks)
+        r => sub { _xs_unmock_op($optype); _to_bool( scalar -r _ ) },    # readable by effective uid/gid
+        w => sub { _xs_unmock_op($optype); _to_bool( scalar -w _ ) },    # writable by effective uid/gid
+        x => sub { _xs_unmock_op($optype); _to_bool( scalar -x _ ) },    # executable by effective uid/gid
+        o => sub { _xs_unmock_op($optype); _to_bool( scalar -o _ ) },    # owned by effective uid
 
-        # ugly need a better way to do this...
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -r _ );
-    }
-    elsif ( $check eq 'w' ) {
+        # Unmock then delegate to _ (real uid/gid checks)
+        R => sub { _xs_unmock_op($optype); _to_bool( scalar -R _ ) },    # readable by real uid/gid
+        W => sub { _xs_unmock_op($optype); _to_bool( scalar -W _ ) },    # writable by real uid/gid
+        X => sub { _xs_unmock_op($optype); _to_bool( scalar -X _ ) },    # executable by real uid/gid
+        O => sub { _xs_unmock_op($optype); _to_bool( scalar -O _ ) },    # owned by real uid
 
-        # -w  File is writable by effective uid/gid.
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -w _ );
-    }
-    elsif ( $check eq 'x' ) {
+        # Unmock then delegate to _ (other permission/attribute checks)
+        z => sub { _xs_unmock_op($optype); _to_bool( scalar -z _ ) },    # zero size
+        t => sub { _xs_unmock_op($optype); _to_bool( scalar -t _ ) },    # filehandle is a tty
+        u => sub { _xs_unmock_op($optype); _to_bool( scalar -u _ ) },    # setuid bit
+        g => sub { _xs_unmock_op($optype); _to_bool( scalar -g _ ) },    # setgid bit
+        k => sub { _xs_unmock_op($optype); _to_bool( scalar -k _ ) },    # sticky bit
 
-        # -x  File is executable by effective uid/gid.
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -x _ );
-    }
-    elsif ( $check eq 'o' ) {
+        # Heuristic text/binary checks (use glob _ to pass the cached stat)
+        T => sub { _xs_unmock_op($optype); _to_bool( scalar -T *_ ) },   # ASCII or UTF-8 text (heuristic)
+        B => sub {                                                         # binary file (opposite of -T)
+            return CHECK_IS_TRUE if -d $f_or_fh;
+            _xs_unmock_op($optype);
+            return _to_bool( scalar -B *_ );
+        },
 
-        # -o  File is owned by effective uid.
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -o _ );
-    }
-    elsif ( $check eq 'R' ) {
+        # Existence and size (computed directly from cached stat)
+        e => sub { _to_bool( scalar @stat && $stat[ST_MODE] ) },         # file exists
+        s => sub { $stat[ST_SIZE] },                                       # nonzero size (returns bytes); fallback breaks on symlinks
 
-        # -R  File is readable by real uid/gid.
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -R _ );
-    }
-    elsif ( $check eq 'W' ) {
+        # File type checks via mode bits (using @stat — follows symlinks)
+        f => sub { _check_mode_type( $stat[ST_MODE],  S_IFREG ) },       # plain file
+        d => sub { _check_mode_type( $stat[ST_MODE],  S_IFDIR ) },       # directory
 
-        # -W  File is writable by real uid/gid.
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -W _ );
-    }
-    elsif ( $check eq 'X' ) {
+        # File type checks via mode bits (using @lstat — does not follow symlinks)
+        l => sub { _check_mode_type( $lstat[ST_MODE], S_IFLNK ) },       # symbolic link
+        p => sub { _check_mode_type( $lstat[ST_MODE], S_IFIFO ) },       # named pipe (FIFO)
+        S => sub { _check_mode_type( $lstat[ST_MODE], S_IFSOCK ) },      # socket
+        b => sub { _check_mode_type( $lstat[ST_MODE], S_IFBLK ) },       # block special file
+        c => sub { _check_mode_type( $lstat[ST_MODE], S_IFCHR ) },       # character special file
 
-        # -X  File is executable by real uid/gid.
+        # Age calculations: (basetime - timestamp) / seconds_per_day
+        M => sub {
+            return CHECK_IS_NULL unless scalar @stat && defined $stat[ST_MTIME];
+            ( get_basetime() - $stat[ST_MTIME] ) / 86400.0;              # days since modification
+        },
+        A => sub {
+            return CHECK_IS_NULL unless scalar @stat && defined $stat[ST_ATIME];
+            ( get_basetime() - $stat[ST_ATIME] ) / 86400.0;              # days since access
+        },
+        C => sub {
+            return CHECK_IS_NULL unless scalar @stat && defined $stat[ST_CTIME];
+            ( get_basetime() - $stat[ST_CTIME] ) / 86400.0;              # days since inode change
+        },
+    );
 
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -X _ );
-    }
-    elsif ( $check eq 'O' ) {
-
-        # -O  File is owned by real uid.
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -O _ );
-    }
-    elsif ( $check eq 'e' ) {
-
-        # -e  File exists.
-        # a file can only exists if MODE is set ?
-        return _to_bool( scalar @stat && $stat[ST_MODE] );
-    }
-    elsif ( $check eq 'z' ) {
-
-        # -z  File has zero size (is empty).
-
-        # TODO: can probably avoid the extra called...
-        #   by checking it ourself
-
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -z _ );
-    }
-    elsif ( $check eq 's' ) {
-
-        # -s  File has nonzero size (returns size in bytes).
-
-        # fallback does not work with symlinks
-        #   do the check ourself, which also save a few calls
-
-        return $stat[ST_SIZE];
-    }
-    elsif ( $check eq 'f' ) {
-
-        # -f  File is a plain file.
-        return _check_mode_type( $stat[ST_MODE], S_IFREG );
-    }
-    elsif ( $check eq 'd' ) {
-
-        # -d  File is a directory.
-
-        return _check_mode_type( $stat[ST_MODE], S_IFDIR );
-    }
-    elsif ( $check eq 'l' ) {
-
-        # -l  File is a symbolic link (false if symlinks aren't
-        #    supported by the file system).
-
-        return _check_mode_type( $lstat[ST_MODE], S_IFLNK );
-    }
-    elsif ( $check eq 'p' ) {
-
-        # -p  File is a named pipe (FIFO), or Filehandle is a pipe.
-        return _check_mode_type( $lstat[ST_MODE], S_IFIFO );
-    }
-    elsif ( $check eq 'S' ) {
-
-        # -S  File is a socket.
-        return _check_mode_type( $lstat[ST_MODE], S_IFSOCK );
-    }
-    elsif ( $check eq 'b' ) {
-
-        # -b  File is a block special file.
-        return _check_mode_type( $lstat[ST_MODE], S_IFBLK );
-    }
-    elsif ( $check eq 'c' ) {
-
-        # -c  File is a character special file.
-        return _check_mode_type( $lstat[ST_MODE], S_IFCHR );
-    }
-    elsif ( $check eq 't' ) {
-
-        # -t  Filehandle is opened to a tty.
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -t _ );
-    }
-    elsif ( $check eq 'u' ) {
-
-        # -u  File has setuid bit set.
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -u _ );
-    }
-    elsif ( $check eq 'g' ) {
-
-        # -g  File has setgid bit set.
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -g _ );
-    }
-    elsif ( $check eq 'k' ) {
-
-        # -k  File has sticky bit set.
-
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -k _ );
-    }
-    elsif ( $check eq 'T' ) {    # heuristic guess.. throw a die?
-
-        # -T  File is an ASCII or UTF-8 text file (heuristic guess).
-
-        #return CHECK_IS_FALSE if -d $f_or_fh;
-
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -T *_ );
-    }
-    elsif ( $check eq 'B' ) {    # heuristic guess.. throw a die?
-
-        # -B  File is a "binary" file (opposite of -T).
-
-        return CHECK_IS_TRUE if -d $f_or_fh;
-
-        # ... we cannot really know...
-        # ... this is an heuristic guess...
-
-        _xs_unmock_op($optype);
-        return _to_bool( scalar -B *_ );
-    }
-    elsif ( $check eq 'M' ) {
-
-        # -M  Script start time minus file modification time, in days.
-
-        return CHECK_IS_NULL unless scalar @stat && defined $stat[ST_MTIME];
-        return ( ( get_basetime() - $stat[ST_MTIME] ) / 86400.0 );
-
-        #return int( scalar -M _ );
-    }
-    elsif ( $check eq 'A' ) {
-
-        # -A  Same for access time.
-        #
-        # ((NV)PL_basetime - PL_statcache.st_atime) / 86400.0
-        return CHECK_IS_NULL unless scalar @stat && defined $stat[ST_ATIME];
-
-        return ( ( get_basetime() - $stat[ST_ATIME] ) / 86400.0 );
-    }
-    elsif ( $check eq 'C' ) {
-
-        # -C  Same for inode change time (Unix, may differ for other
-        #_xs_unmock_op($optype);
-        #return scalar -C *_;
-        return CHECK_IS_NULL unless scalar @stat && defined $stat[ST_CTIME];
-
-        return ( ( get_basetime() - $stat[ST_CTIME] ) / 86400.0 );
-    }
-    else {
-        die "Unknown check $check.\n";
-    }
-
-    die "FileCheck -$check is not implemented by Overload::FileCheck...";
-
-    return FALLBACK_TO_REAL_OP;
+    my $handler = $dispatch{$check}
+        or die "Unknown check $check.\n";
+    return $handler->();
 }
 
 sub _to_bool {
