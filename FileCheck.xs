@@ -326,11 +326,15 @@ PP(pp_overload_ft_nv) {
 
   status = _overload_ft_ops_sv();
 
-  if ( SvIOK(status) && SvIV(status) == -1 )
+  if ( SvIOK(status) && SvIV(status) == -1 ) {
+    SvREFCNT_dec(status);
     return CALL_REAL_OP();
+  }
 
-  if ( SvNOK(status) && SvNV(status) == -1 )
+  if ( SvNOK(status) && SvNV(status) == -1 ) {
+    SvREFCNT_dec(status);
     return CALL_REAL_OP();
+  }
 
   {
     dTARGET;
@@ -341,6 +345,7 @@ PP(pp_overload_ft_nv) {
     else if ( SvIOK(status) )
       sv_setiv(TARG, (IV) SvIV(status) );
 
+    SvREFCNT_dec(status);
     FT_RETURN_TARG;
   }
 }
