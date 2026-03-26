@@ -13,6 +13,7 @@ use warnings;
 # ABSTRACT: override/mock perl file check -X: -e, -f, -d, ...
 
 use Errno ();
+use Carp  ();
 
 use base 'Exporter';
 
@@ -600,8 +601,9 @@ sub _stat_for {
             $stat[ST_UID] = $opts->{uid};
         }
         else {
-
-            $stat[ST_UID] = getpwnam( $opts->{uid} );
+            my $uid = getpwnam( $opts->{uid} );
+            Carp::croak("Unknown user '$opts->{uid}' passed to uid option") unless defined $uid;
+            $stat[ST_UID] = $uid;
         }
     }
 
@@ -610,7 +612,9 @@ sub _stat_for {
             $stat[ST_GID] = $opts->{gid};
         }
         else {
-            $stat[ST_GID] = getgrnam( $opts->{gid} );
+            my $gid = getgrnam( $opts->{gid} );
+            Carp::croak("Unknown group '$opts->{gid}' passed to gid option") unless defined $gid;
+            $stat[ST_GID] = $gid;
         }
     }
 
