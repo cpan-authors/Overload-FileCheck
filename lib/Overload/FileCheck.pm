@@ -443,14 +443,17 @@ sub unmock_all_file_checks {
 my $_last_call_for;
 
 sub _check {
-    my ( $optype, $file, @others ) = @_;
-
-    die if scalar @others;    # need to move this in a unit test
+    my ( $optype, $file ) = @_;
 
     # we have no custom mock at this point
     return FALLBACK_TO_REAL_OP unless defined $_current_mocks->{$optype};
 
-    $file = $_last_call_for if !defined $file && defined $_last_call_for && !defined $_current_mocks->{ $MAP_FC_OP{'stat'} };
+    # Fall back to the last filename when the current file is undef
+    # and stat is not independently mocked (stacked -X _ scenario).
+    if ( !defined $file && defined $_last_call_for
+        && !defined $_current_mocks->{ $MAP_FC_OP{'stat'} } ) {
+        $file = $_last_call_for;
+    }
     my ( $out, @extra ) = $_current_mocks->{$optype}->($file);
     # Only cache string filenames, not filehandle references.
     # Storing a ref here prevents the filehandle from being garbage collected,
@@ -497,7 +500,7 @@ sub _check {
         # blkcnt_t  st_blocks  Number of blocks allocated for this object.
         # ......
 
-        my $stat      = $out // $others[0];    # can be array or hash at this point
+        my $stat      = $out // $extra[0];    # can be array or hash at this point
         my $stat_is_a = ref $stat;
         die q[Your mocked function for stat should return a stat array or hash] unless $stat_is_a;
 
