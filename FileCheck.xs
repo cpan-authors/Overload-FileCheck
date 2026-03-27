@@ -100,15 +100,7 @@ int _overload_ft_ops() {
 
   /* printf ("######## The result is %d /// OPTYPE is %d\n", check_status, optype); */
 
-  /* Save errno before scope cleanup — FREETMPS/LEAVE can trigger
-   * DESTROY or other Perl code that clobbers errno set by _check(). */
-  {
-    int saved_errno = errno;
-    PUTBACK;
-    FREETMPS;
-    LEAVE;
-    errno = saved_errno;
-  }
+  LEAVE_PRESERVING_ERRNO();
 
   return check_status;
 }
@@ -143,13 +135,7 @@ SV* _overload_ft_ops_sv() {
 
   /* printf ("######## The result is %d /// OPTYPE is %d\n", check_status, optype); */
 
-  {
-    int saved_errno = errno;
-    PUTBACK;
-    FREETMPS;
-    LEAVE;
-    errno = saved_errno;
-  }
+  LEAVE_PRESERVING_ERRNO();
 
   return status;
 }
@@ -253,13 +239,7 @@ int _overload_ft_stat(Stat_t *stat, int *size) {
 
   }
 
-  {
-    int saved_errno = errno;
-    PUTBACK;
-    FREETMPS;
-    LEAVE;
-    errno = saved_errno;
-  }
+  LEAVE_PRESERVING_ERRNO();
 
   return check_status;
 }
