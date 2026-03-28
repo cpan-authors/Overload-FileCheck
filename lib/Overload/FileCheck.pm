@@ -426,7 +426,7 @@ sub unmock_stat {
 
 sub unmock_all_file_checks {
 
-    my @mocks = sort map { $REVERSE_MAP{$_} } keys %$_current_mocks;
+    my @mocks = map { $REVERSE_MAP{$_} } keys %$_current_mocks;
     return unless scalar @mocks;
 
     return unmock_file_check(@mocks);
