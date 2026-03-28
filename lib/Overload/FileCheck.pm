@@ -425,7 +425,7 @@ sub unmock_stat {
 
 sub unmock_all_file_checks {
 
-    my @mocks = sort map { $REVERSE_MAP{$_} } keys %$_current_mocks;
+    my @mocks = map { $REVERSE_MAP{$_} } keys %$_current_mocks;
     return unless scalar @mocks;
 
     return unmock_file_check(@mocks);
@@ -454,80 +454,61 @@ sub _check {
     # causing resource leaks (e.g. sockets staying open). See GH #179.
     $_last_call_for = ref($file) ? undef : $file;
 
-    # FIXME return undef when not defined out
-
     if ( defined $out && $OP_CAN_RETURN_INT{$optype} ) {
-        return $out;          # limitation to int for now in fact some returns NVs
+        return $out;
     }
 
     if ( !$out ) {
 
-        # check if the user provided a custom ERRNO error otherwise
-        #   set one for him, so a test could never fail without having
-        #   ERRNO set
+        # Set a default ERRNO when the user didn't provide one,
+        # so tests never pass with $! left at zero.
         if ( !int($!) ) {
             $! = $DEFAULT_ERRNO{ $REVERSE_MAP{$optype} || 'default' } || $DEFAULT_ERRNO{'default'};
         }
 
-        #return undef unless defined $out;
         return CHECK_IS_FALSE;
     }
 
     return FALLBACK_TO_REAL_OP if !ref $out && $out == FALLBACK_TO_REAL_OP;
 
-    # stat and lstat OP are returning a stat ARRAY in addition to the status code
+    # stat/lstat return a stat array in addition to the status code
     if ( $OP_IS_STAT_OR_LSTAT{$optype} ) {
-
-        # .......... Stat_t
-        # dev_t     st_dev     Device ID of device containing file.
-        # ino_t     st_ino     File serial number.
-        # mode_t    st_mode    Mode of file (see below).
-        # nlink_t   st_nlink   Number of hard links to the file.
-        # uid_t     st_uid     User ID of file.
-        # gid_t     st_gid     Group ID of file.
-        # dev_t     st_rdev    Device ID (if file is character or block special).
-        # off_t     st_size    For regular files, the file size in bytes.
-        # time_t    st_atime   Time of last access.
-        # time_t    st_mtime   Time of last data modification.
-        # time_t    st_ctime   Time of last status change.
-        # blksize_t st_blksize A file system-specific preferred I/O block size for
-        # blkcnt_t  st_blocks  Number of blocks allocated for this object.
-        # ......
-
-        my $stat      = $out // $extra[0];    # can be array or hash at this point
-        my $stat_is_a = ref $stat;
-        die q[Your mocked function for stat should return a stat array or hash] unless $stat_is_a;
-
-        my $stat_as_arrayref;
-
-        # can handle one ARRAY or a HASH
-        my $stat_t_max = STAT_T_MAX;
-        if ( $stat_is_a eq 'ARRAY' ) {
-            $stat_as_arrayref = $stat;
-            my $av_size = scalar @$stat;
-            if (
-                $av_size                       # 0 is valid when the file is missing
-                && $av_size != $stat_t_max
-            ) {
-                die qq[Stat array should contain exactly 0 or $stat_t_max values];
-            }
-        }
-        elsif ( $stat_is_a eq 'HASH' ) {
-            $stat_as_arrayref = [ (0) x $stat_t_max ];    # start with an empty array
-            foreach my $k ( keys %$stat ) {
-                my $ix = $MAP_STAT_T_IX{ lc($k) };
-                die qq[Unknown index for stat_t struct key $k] unless defined $ix;
-                $stat_as_arrayref->[$ix] = $stat->{$k};
-            }
-        }
-        else {
-            die q[Your mocked function for stat should return a stat array or hash];
-        }
-
+        my $stat_as_arrayref = _normalize_stat_result( $out, @extra );
         return ( CHECK_IS_TRUE, $stat_as_arrayref );
     }
 
     return CHECK_IS_TRUE;
+}
+
+# Normalize a mock stat return value (array or hash) into a 13-element arrayref.
+sub _normalize_stat_result {
+    my ( $out, @extra ) = @_;
+
+    my $stat      = $out // $extra[0];
+    my $stat_is_a = ref $stat;
+    die q[Your mocked function for stat should return a stat array or hash] unless $stat_is_a;
+
+    my $stat_t_max = STAT_T_MAX;
+
+    if ( $stat_is_a eq 'ARRAY' ) {
+        my $av_size = scalar @$stat;
+        if ( $av_size && $av_size != $stat_t_max ) {
+            die qq[Stat array should contain exactly 0 or $stat_t_max values];
+        }
+        return $stat;
+    }
+
+    if ( $stat_is_a eq 'HASH' ) {
+        my $stat_as_arrayref = [ (0) x $stat_t_max ];
+        foreach my $k ( keys %$stat ) {
+            my $ix = $MAP_STAT_T_IX{ lc($k) };
+            die qq[Unknown index for stat_t struct key $k] unless defined $ix;
+            $stat_as_arrayref->[$ix] = $stat->{$k};
+        }
+        return $stat_as_arrayref;
+    }
+
+    die q[Your mocked function for stat should return a stat array or hash];
 }
 
 # accessors for testing purpose mainly
