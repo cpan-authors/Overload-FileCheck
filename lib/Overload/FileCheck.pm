@@ -216,14 +216,12 @@ sub mock_all_file_checks {
     return 1;
 }
 
-sub _normalize_and_validate_check {
+sub _resolve_check {
     my ($check) = @_;
-
     die q[Check is not defined] unless defined $check;
     $check =~ s{^-+}{};    # strip any extra dashes
     die qq[Unknown check '$check'] unless defined $MAP_FC_OP{$check};
-
-    return $check;
+    return ( $check, $MAP_FC_OP{$check} );
 }
 
 sub mock_file_check {
@@ -231,10 +229,8 @@ sub mock_file_check {
 
     die q[Second arg must be a CODE ref] unless ref $sub eq 'CODE';
 
-    $check = _normalize_and_validate_check($check);
-
-    my $optype = $MAP_FC_OP{$check};
-    die qq[-$check is already mocked by Overload::FileCheck] if exists $_current_mocks->{$optype};
+    my ( $name, $optype ) = _resolve_check($check);
+    die qq[-$name is already mocked by Overload::FileCheck] if exists $_current_mocks->{$optype};
 
     $_current_mocks->{$optype} = $sub;
 
@@ -247,9 +243,7 @@ sub unmock_file_check {
     my (@checks) = @_;
 
     foreach my $check (@checks) {
-        $check = _normalize_and_validate_check($check);
-
-        my $optype = $MAP_FC_OP{$check};
+        my ( undef, $optype ) = _resolve_check($check);
 
         delete $_current_mocks->{$optype};
 
