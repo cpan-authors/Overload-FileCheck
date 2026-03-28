@@ -312,12 +312,8 @@ PP(pp_overload_ft_nv) {
    * allocations or other Perl internals that clobber errno. */
   saved_errno = errno;
 
-  if ( SvIOK(status) && SvIV(status) == -1 ) {
-    SvREFCNT_dec(status);
-    return CALL_REAL_OP();
-  }
-
-  if ( SvNOK(status) && SvNV(status) == -1 ) {
+  /* Check for FALLBACK_TO_REAL_OP sentinel (-1) across all SV types */
+  if ( SvNV(status) == -1 ) {
     SvREFCNT_dec(status);
     return CALL_REAL_OP();
   }
@@ -330,6 +326,8 @@ PP(pp_overload_ft_nv) {
       sv_setnv(TARG, (NV) SvNV(status) );
     else if ( SvIOK(status) )
       sv_setiv(TARG, (IV) SvIV(status) );
+    else
+      sv_setnv(TARG, (NV) SvNV(status) );
 
     SvREFCNT_dec(status);
     errno = saved_errno;
