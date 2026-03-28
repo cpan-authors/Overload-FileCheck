@@ -18,10 +18,7 @@
 
 #include "FileCheck.h"
 
-/*
-*  Macro to make the moking process easier
-*     for now keep them there, so we can hack them in the same file
-*/
+/* Macros to simplify OP overloading */
 
 /* generic macro with args */
 #define _CALL_REAL_PP(zOP) (* ( gl_overload_ft->op[zOP].real_pp ) )(aTHX)
@@ -36,19 +33,15 @@
   gl_overload_ft->op[op_type].real_pp = PL_ppaddr[op_type]; \
   PL_ppaddr[op_type] = f;
 
-/* TODO: need to improve for Perl <= 5.014 */
 #define RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV() STMT_START { \
     if (gl_overload_ft->op[OP_STAT].is_mocked) { \
       SV *arg = *PL_stack_sp; GV *gv; \
       if ( SvTYPE(arg) == SVt_PVAV ) arg = arg + AvMAX( arg ); \
-      /* GV *gv =  MAYBE_DEREF_GV(arg); */ \
       if ( PL_op->op_flags & OPf_REF ) \
         gv = cGVOP_gv; \
       else { \
         gv = MAYBE_DEREF_GV(arg); \
        } \
-      /* printf ("### XXX ---> arg %d %p vs GV %p vs defgv %p \n", SvFLAGS(arg), *PL_stack_sp, gv, PL_defgv ); */ \
-      /* get the GV from the arg if it s not a GV */ \
       if ( SvTYPE(arg) == SVt_NULL || gv == PL_defgv ) { \
         return CALL_REAL_OP(); \
       } \
@@ -58,8 +51,6 @@
 /* a Stat_t struct has 13 elements */
 #define STAT_T_MAX 13
 
-/* ----------- start there --------------- */
-
 OverloadFTOps  *gl_overload_ft = 0;
 
 /*
@@ -68,7 +59,6 @@ OverloadFTOps  *gl_overload_ft = 0;
 *
 *  1 check is true  -> OP returns Yes
 *  0 check is false -> OP returns No
-*  TODO:            -> OP returns undef
 * -1 fallback to the original OP
 */
 int _overload_ft_ops() {
@@ -96,9 +86,7 @@ int _overload_ft_ops() {
   if (count != 1)
     croak("No return value from Overload::FileCheck::_check for OP #%d\n", optype);
 
-  check_status = POPi; /* TOOO pop on SV* for true / false & co */
-
-  /* printf ("######## The result is %d /// OPTYPE is %d\n", check_status, optype); */
+  check_status = POPi;
 
   LEAVE_PRESERVING_ERRNO();
 
@@ -132,8 +120,6 @@ SV* _overload_ft_ops_sv() {
 
   status = POPs;
   SvREFCNT_inc( status );
-
-  /* printf ("######## The result is %d /// OPTYPE is %d\n", check_status, optype); */
 
   LEAVE_PRESERVING_ERRNO();
 
@@ -193,7 +179,7 @@ int _overload_ft_stat(Stat_t *stat, int *size) {
 
   /* popping the stack from last entry to first */
   if (count == 2) sv = POPs; /* RvAV */
-  check_status = POPi; /* TOOO pop on SV* for true / false & co */
+  check_status = POPi;
 
   *size = -1; /* by default it fails */
 
@@ -247,7 +233,6 @@ int _overload_ft_stat(Stat_t *stat, int *size) {
 
 
 /* a generic OP to overload the FT OPs returning yes or no */
-/* FIXME also need to handle undef */
 PP(pp_overload_ft_yes_no) {
   int check_status;
 
@@ -264,7 +249,6 @@ PP(pp_overload_ft_yes_no) {
 
     if ( check_status == 1 ) FT_RETURNYES;
     if ( check_status == 0 ) FT_RETURNUNDEF;
-    /* if ( check_status == -1 ) FT_RETURNUNDEF; */ /* TODO */
   }
 
   /* fallback */
@@ -282,7 +266,6 @@ PP(pp_overload_ft_int) {
 
   check_status = _overload_ft_ops();
 
-  /* SETERRNO(EEXIST,RMS_FEX); */ /* TODO */
   if ( check_status == -1 )
     return CALL_REAL_OP();
 
@@ -290,7 +273,6 @@ PP(pp_overload_ft_int) {
     dTARGET;
     FT_SETUP_dSP_IF_NEEDED;
 
-    /* TODO this is over simplistic some OPs can return one NV instead of IV */
     sv_setiv(TARG, (IV) check_status);
     FT_RETURN_TARG;
   }
@@ -370,8 +352,6 @@ PP(pp_overload_stat) { /* stat & lstat */
       dSP;
 
       /* drop & replace our stack first element with *_ */
-      /* Unexpected warning: Attempt to free unreferenced scalar: SV 0x119bd80. */
-      //SV *previous_stack = sv_2mortal(POPs); /* what do we want to do with this ? */
       SV *previous_stack = POPs;
 
       /* copy the content of mocked_stat to PL_statcache */
@@ -446,7 +426,6 @@ mock_op(optype)
       Overload::FileCheck::_xs_unmock_op             = 2
  CODE:
  {
-     /* mylogger = INT2PTR(MyLogger*, SvIV(SvRV(self))); */
       int opid = 0;
 
       if ( ! SvIOK(optype) )
@@ -497,7 +476,7 @@ BOOT:
          /* provide constants to standardize return values from mocked functions */
          newCONSTSUB(stash, "CHECK_IS_TRUE",         &PL_sv_yes );   /* could use newSViv(1) or &PL_sv_yes */
          newCONSTSUB(stash, "CHECK_IS_FALSE",        &PL_sv_no );    /* could use newSViv(0) or &PL_sv_no  */
-         newCONSTSUB(stash, "CHECK_IS_NULL",         &PL_sv_undef ); /* FIXME: need to handle this as a valid answer */
+         newCONSTSUB(stash, "CHECK_IS_NULL",         &PL_sv_undef );
          newCONSTSUB(stash, "FALLBACK_TO_REAL_OP",  newSVnv(-1) );
 
          /* provide constants to add entry in a fake stat array */
