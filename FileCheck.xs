@@ -18,6 +18,11 @@
 
 #include "FileCheck.h"
 
+/* Debug mode — set via OVERLOAD_FILECHECK_DEBUG env var at load time */
+static int gl_debug = 0;
+
+#define OFC_DEBUG(...) STMT_START { if (gl_debug) PerlIO_printf(PerlIO_stderr(), __VA_ARGS__); } STMT_END
+
 /* Macros to simplify OP overloading */
 
 /* generic macro with args */
@@ -42,6 +47,8 @@
       else { \
         gv = MAYBE_DEREF_GV(arg); \
        } \
+      OFC_DEBUG("DEFGV check: arg flags=%lu stack_sp=%p gv=%p defgv=%p\n", \
+        (unsigned long)SvFLAGS(arg), (void*)*PL_stack_sp, (void*)gv, (void*)PL_defgv); \
       if ( SvTYPE(arg) == SVt_NULL || gv == PL_defgv ) { \
         return CALL_REAL_OP(); \
       } \
@@ -88,6 +95,8 @@ int _overload_ft_ops() {
 
   check_status = POPi;
 
+  OFC_DEBUG("_overload_ft_ops: result=%d optype=%d\n", check_status, optype);
+
   LEAVE_PRESERVING_ERRNO();
 
   return check_status;
@@ -120,6 +129,8 @@ SV* _overload_ft_ops_sv() {
 
   status = POPs;
   SvREFCNT_inc( status );
+
+  OFC_DEBUG("_overload_ft_ops_sv: optype=%d\n", optype);
 
   LEAVE_PRESERVING_ERRNO();
 
@@ -468,8 +479,13 @@ BOOT:
          HV *stash;
          SV *sv;
          int ix = 0;
+         const char *debug_env;
 
          Newxz( gl_overload_ft, 1, OverloadFTOps);
+
+         debug_env = getenv("OVERLOAD_FILECHECK_DEBUG");
+         if (debug_env && *debug_env && *debug_env != '0')
+           gl_debug = 1;
 
          stash = gv_stashpvn("Overload::FileCheck", 19, TRUE);
 
