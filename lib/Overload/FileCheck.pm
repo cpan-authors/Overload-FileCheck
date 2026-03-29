@@ -507,7 +507,8 @@ sub _normalize_stat_result {
     if ( $stat_is_a eq 'HASH' ) {
         my $stat_as_arrayref = [ (0) x $stat_t_max ];
         foreach my $k ( keys %$stat ) {
-            my $ix = $MAP_STAT_T_IX{ lc($k) };
+            ( my $normalized = lc($k) ) =~ s{^st_}{};
+            my $ix = $MAP_STAT_T_IX{"st_$normalized"};
             die qq[Unknown index for stat_t struct key $k] unless defined $ix;
             $stat_as_arrayref->[$ix] = $stat->{$k};
         }
