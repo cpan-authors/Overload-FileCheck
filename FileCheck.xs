@@ -268,6 +268,7 @@ PP(pp_overload_ft_yes_no) {
 
 PP(pp_overload_ft_int) {
   int check_status;
+  int saved_errno;
 
   assert( gl_overload_ft );
 
@@ -280,11 +281,16 @@ PP(pp_overload_ft_int) {
   if ( check_status == -1 )
     return CALL_REAL_OP();
 
+  /* Save errno — sv_setiv() and FT_RETURN_TARG can trigger allocations
+   * or other Perl internals that clobber errno. */
+  saved_errno = errno;
+
   {
     dTARGET;
     FT_SETUP_dSP_IF_NEEDED;
 
     sv_setiv(TARG, (IV) check_status);
+    errno = saved_errno;
     FT_RETURN_TARG;
   }
 }
