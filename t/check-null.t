@@ -83,10 +83,16 @@ use Overload::FileCheck q(:all);
     );
 
     $mock_return = 42;
-    is( -s "/null-test-s", 42, "-s returns the mocked size" );
+    {
+        my $result = -s "/null-test-s";
+        is( $result, 42, "-s returns the mocked size" );
+    }
 
     $mock_return = 0;
-    is( -s "/null-test-s", 0, "-s returns 0 when size is 0" );
+    {
+        my $result = -s "/null-test-s";
+        is( $result, 0, "-s returns 0 when size is 0" );
+    }
 
     $mock_return = CHECK_IS_NULL;    # undef
     my $result = -s "/null-test-s";
