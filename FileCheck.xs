@@ -41,7 +41,8 @@ static int gl_debug = 0;
 #define RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV() STMT_START { \
     if (gl_overload_ft->op[OP_STAT].is_mocked) { \
       SV *arg = *PL_stack_sp; GV *gv; \
-      if ( SvTYPE(arg) == SVt_PVAV ) arg = arg + AvMAX( arg ); \
+      if ( SvTYPE(arg) == SVt_PVAV && AvMAX((AV*)arg) >= 0 ) \
+        arg = arg + AvMAX( arg ); \
       if ( PL_op->op_flags & OPf_REF ) \
         gv = cGVOP_gv; \
       else { \
@@ -59,6 +60,10 @@ static int gl_debug = 0;
 #define STAT_T_MAX 13
 
 OverloadFTOps  *gl_overload_ft = 0;
+
+#define ASSERT_OVERLOAD_FT_INITIALIZED() \
+  if (!gl_overload_ft) \
+    croak("Overload::FileCheck: internal state not initialized (gl_overload_ft is NULL)")
 
 /*
 * common helper to callback the pure perl function Overload::FileCheck::_check
@@ -247,7 +252,7 @@ int _overload_ft_stat(Stat_t *stat, int *size) {
 PP(pp_overload_ft_yes_no) {
   int check_status;
 
-  assert( gl_overload_ft );
+  ASSERT_OVERLOAD_FT_INITIALIZED();
 
   /* not currently mocked */
   RETURN_CALL_REAL_OP_IF_UNMOCK();
@@ -270,7 +275,7 @@ PP(pp_overload_ft_int) {
   int check_status;
   int saved_errno;
 
-  assert( gl_overload_ft );
+  ASSERT_OVERLOAD_FT_INITIALIZED();
 
   /* not currently mocked */
   RETURN_CALL_REAL_OP_IF_UNMOCK();
@@ -299,7 +304,7 @@ PP(pp_overload_ft_nv) {
   SV *status;
   int saved_errno;
 
-  assert( gl_overload_ft );
+  ASSERT_OVERLOAD_FT_INITIALIZED();
 
   /* not currently mocked */
   RETURN_CALL_REAL_OP_IF_UNMOCK();
@@ -340,7 +345,7 @@ PP(pp_overload_stat) { /* stat & lstat */
   int size;
 
 
-  assert( gl_overload_ft );
+  ASSERT_OVERLOAD_FT_INITIALIZED();
 
   /* not currently mocked */
   RETURN_CALL_REAL_OP_IF_UNMOCK();
