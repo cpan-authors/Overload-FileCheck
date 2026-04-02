@@ -448,11 +448,17 @@ sub _check {
         && !defined $_current_mocks->{ $MAP_FC_OP{'stat'} } ) {
         $file = $_last_call_for;
     }
+
+    # Save $_last_call_for before callback dispatch so that re-entrant
+    # calls (e.g. mock_all_from_stat callbacks invoking mocked file tests)
+    # cannot corrupt the outer call's filename context.  See GH #68.
+    my $saved_last_call_for = $_last_call_for;
     my ( $out, @extra ) = $_current_mocks->{$optype}->($file);
-    # Only cache string filenames, not filehandle references.
-    # Storing a ref here prevents the filehandle from being garbage collected,
-    # causing resource leaks (e.g. sockets staying open). See GH #179.
-    $_last_call_for = ref($file) ? undef : $file;
+    # Cache string filenames for stacked -X _ ops.  When the file is a
+    # reference (filehandle), restore the pre-callback value instead of
+    # clobbering with undef — an inner re-entrant call may have set a
+    # valid filename that a subsequent stacked op needs.  See GH #179.
+    $_last_call_for = ref($file) ? $saved_last_call_for : $file;
 
     if ( defined $out && $OP_CAN_RETURN_INT{$optype} ) {
         return $out;
