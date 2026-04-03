@@ -247,7 +247,8 @@ int _overload_ft_stat(Stat_t *stat, int *size) {
 PP(pp_overload_ft_yes_no) {
   int check_status;
 
-  assert( gl_overload_ft );
+  if (!gl_overload_ft)
+    croak("Overload::FileCheck: internal state not initialized (gl_overload_ft is NULL)");
 
   /* not currently mocked */
   RETURN_CALL_REAL_OP_IF_UNMOCK();
@@ -270,7 +271,8 @@ PP(pp_overload_ft_int) {
   int check_status;
   int saved_errno;
 
-  assert( gl_overload_ft );
+  if (!gl_overload_ft)
+    croak("Overload::FileCheck: internal state not initialized (gl_overload_ft is NULL)");
 
   /* not currently mocked */
   RETURN_CALL_REAL_OP_IF_UNMOCK();
@@ -299,7 +301,8 @@ PP(pp_overload_ft_nv) {
   SV *status;
   int saved_errno;
 
-  assert( gl_overload_ft );
+  if (!gl_overload_ft)
+    croak("Overload::FileCheck: internal state not initialized (gl_overload_ft is NULL)");
 
   /* not currently mocked */
   RETURN_CALL_REAL_OP_IF_UNMOCK();
@@ -340,7 +343,8 @@ PP(pp_overload_stat) { /* stat & lstat */
   int size;
 
 
-  assert( gl_overload_ft );
+  if (!gl_overload_ft)
+    croak("Overload::FileCheck: internal state not initialized (gl_overload_ft is NULL)");
 
   /* not currently mocked */
   RETURN_CALL_REAL_OP_IF_UNMOCK();
