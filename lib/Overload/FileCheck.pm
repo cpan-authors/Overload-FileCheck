@@ -559,7 +559,7 @@ sub stat_as_block {
 sub _stat_for {
     my ( $type, $opts ) = @_;
 
-    my @stat = ( (0) x 13 );    # STAT_T_MAX
+    my @stat = ( (0) x STAT_T_MAX );
 
     # set file type
     if ( defined $type ) {
