@@ -20,7 +20,6 @@ typedef struct {
 /* this could be an array but for now let's keep it as a struct */
 typedef struct {
 	OPMocked op[OP_MAX]; /* int for now.. could use function later */
-	int offset;
 } OverloadFTOps;
 
 /* function prototypes */
