@@ -84,4 +84,37 @@ subtest 'custom errno preserved through -s mock_file_check' => sub {
     unmock_all_file_checks();
 };
 
+subtest 'auto-errno for int op returning CHECK_IS_FALSE without setting $!' => sub {
+    # GH #62: when a -s mock returns CHECK_IS_FALSE (0) without setting $!,
+    # _check() should auto-set a default errno (ENOENT), same as boolean ops.
+    mock_file_check(
+        '-s' => sub {
+            my $f = shift;
+            if ( $f eq $missing ) {
+                return CHECK_IS_FALSE;    # no explicit $! set
+            }
+            if ( $f eq $exists ) {
+                return 512;
+            }
+            return FALLBACK_TO_REAL_OP;
+        }
+    );
+
+    subtest '-s returns size normally' => sub {
+        $! = 0;
+        my $size = -s $exists;
+        is( $size, 512, '-s returns mocked size' );
+        is( int($!), 0, '$! is not set after successful -s' );
+    };
+
+    subtest '-s with CHECK_IS_FALSE auto-sets ENOENT' => sub {
+        $! = 0;
+        my $size = -s $missing;
+        ok( !$size, '-s returns false' );
+        is( int($!), Errno::ENOENT(), '$! auto-set to ENOENT when mock returns CHECK_IS_FALSE without setting $!' );
+    };
+
+    unmock_all_file_checks();
+};
+
 done_testing;
