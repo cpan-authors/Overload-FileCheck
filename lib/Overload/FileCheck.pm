@@ -470,6 +470,12 @@ sub _check {
     }
 
     if ( $OP_CAN_RETURN_INT{$optype} ) {
+
+        # Auto-set errno for falsy returns from int ops (e.g. -s returning 0)
+        # consistent with the boolean op path below.  GH #62.
+        if ( !$out && !int($!) ) {
+            $! = $DEFAULT_ERRNO{ $REVERSE_MAP{$optype} || 'default' } || $DEFAULT_ERRNO{'default'};
+        }
         return $out;
     }
 
