@@ -288,7 +288,7 @@ sub _check_from_stat {
     # 2/ doing a second stat call in order to cache _
 
     my $can_use_stat;
-    $can_use_stat = 1 if $check =~ qr{^[sfdMXxzACORWeorw]$};
+    $can_use_stat = 1 if $check =~ qr{^[sfdMXxzACORWeorwugk]$};
 
     my $stat_or_lstat = $can_use_stat ? 'stat' : 'lstat';
 
