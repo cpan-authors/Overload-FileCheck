@@ -426,7 +426,7 @@ sub unmock_stat {
 sub unmock_all_file_checks {
 
     my @mocks = sort map { $REVERSE_MAP{$_} } keys %$_current_mocks;
-    return unless scalar @mocks;
+    return 1 unless scalar @mocks;
 
     return unmock_file_check(@mocks);
 }
@@ -809,7 +809,7 @@ When mocking stat or lstat function your callback function should return one of 
 =item or an empty ARRAY Ref, if the file does not exist
 
 =item or one HASH ref using one or more of the following keys: st_dev, st_ino, st_mode, st_nlink,
-  st_uid, st_gid, st_rdev, st_size, st_atime, st_mtime, st_ctime, st_blksiz, st_blocks
+  st_uid, st_gid, st_rdev, st_size, st_atime, st_mtime, st_ctime, st_blksize, st_blocks
 
 =item or return FALLBACK_TO_REAL_OP when you want to let Perl take back the control for that file
 
@@ -1033,25 +1033,11 @@ This code was mainly designed to be used during unit tests. It's far from being 
 Code loaded/interpreted before mocking a file check, would not take benefit of Overload::FileCheck.
 You probably want to load and call the mock function of Overload::FileCheck as early as possible.
 
-=head2 Empty string instead of Undef
-
-Several test operators once mocked will not return the expected 'undef' value but one empty string
-instead. This is a future improvement. If you check the output of -X operators in boolean context
-it should not impact you.
-
 =head2 -B and -T are using heuristics
 
 File check operators like -B and -T are using heuristics to guess if the file content is binary or text.
 By using mock_all_from_stat or ('-from-stat' at import time), we cannot provide an accurate -B or -T checks.
 You would need to provide a custom hooks for them
-
-=head1 TODO
-
-=over
-
-=item support for 'undef' using CHECK_IS_UNDEF as valid return (in addition to CHECK_IS_FALSE)
-
-=back
 
 =head1 LICENSE
 
