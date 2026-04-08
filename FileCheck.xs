@@ -18,8 +18,19 @@
 
 #include "FileCheck.h"
 
-/* Debug mode — set via OVERLOAD_FILECHECK_DEBUG env var at load time */
-static int gl_debug = 0;
+/* Per-interpreter data for ithreads safety.
+ * Under ithreads each interpreter gets its own copy of this struct,
+ * so mock state in one thread cannot race with another. */
+typedef struct {
+    OverloadFTOps *overload_ft;
+    int            debug;
+} my_cxt_t;
+
+START_MY_CXT
+
+/* Convenience aliases — require dMY_CXT in calling scope */
+#define gl_overload_ft  (MY_CXT.overload_ft)
+#define gl_debug        (MY_CXT.debug)
 
 #define OFC_DEBUG(...) STMT_START { if (gl_debug) PerlIO_printf(PerlIO_stderr(), __VA_ARGS__); } STMT_END
 
@@ -58,8 +69,6 @@ static int gl_debug = 0;
 /* a Stat_t struct has 13 elements */
 #define STAT_T_MAX 13
 
-OverloadFTOps  *gl_overload_ft = 0;
-
 /*
 * common helper to callback the pure perl function Overload::FileCheck::_check
 *   and get the mocked value for the -X check
@@ -69,7 +78,8 @@ OverloadFTOps  *gl_overload_ft = 0;
 * -2 check is null  -> OP returns undef (CHECK_IS_NULL)
 * -1 fallback to the original OP
 */
-int _overload_ft_ops() {
+int _overload_ft_ops(pTHX) {
+  dMY_CXT;
   SV *const arg = *PL_stack_sp;
   int optype = PL_op->op_type;  /* this is the current op_type we are mocking */
   int check_status = -1;        /* 1 -> YES ; 0 -> FALSE ; -1 -> delegate */
@@ -109,7 +119,8 @@ int _overload_ft_ops() {
   return check_status;
 }
 
-SV* _overload_ft_ops_sv() {
+SV* _overload_ft_ops_sv(pTHX) {
+  dMY_CXT;
   SV *const arg = *PL_stack_sp;
   int optype = PL_op->op_type;  /* this is the current op_type we are mocking */
   SV *status;        /* 1 -> YES ; 0 -> FALSE ; -1 -> delegate */
@@ -168,7 +179,8 @@ SV* _overload_ft_ops_sv() {
 *
 *   Note: we could also call a dedicated function as _check_stat
 */
-int _overload_ft_stat(Stat_t *stat, int *size) {
+int _overload_ft_stat(pTHX_ Stat_t *stat, int *size) {
+  dMY_CXT;
   SV *const arg = *PL_stack_sp;
   int optype = PL_op->op_type;  /* this is the current op_type we are mocking */
   int check_status = -1;        /* 1 -> YES ; 0 -> FALSE ; -1 -> delegate */
@@ -252,6 +264,7 @@ int _overload_ft_stat(Stat_t *stat, int *size) {
 
 /* a generic OP to overload the FT OPs returning yes or no */
 PP(pp_overload_ft_yes_no) {
+  dMY_CXT;
   int check_status;
 
   if (!gl_overload_ft)
@@ -261,7 +274,7 @@ PP(pp_overload_ft_yes_no) {
   RETURN_CALL_REAL_OP_IF_UNMOCK();
   RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV();
 
-  check_status = _overload_ft_ops();
+  check_status = _overload_ft_ops(aTHX);
 
   {
     FT_SETUP_dSP_IF_NEEDED;
@@ -276,6 +289,7 @@ PP(pp_overload_ft_yes_no) {
 }
 
 PP(pp_overload_ft_int) {
+  dMY_CXT;
   int check_status;
   int saved_errno;
 
@@ -286,7 +300,7 @@ PP(pp_overload_ft_int) {
   RETURN_CALL_REAL_OP_IF_UNMOCK();
   RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV();
 
-  check_status = _overload_ft_ops();
+  check_status = _overload_ft_ops(aTHX);
 
   if ( check_status == -1 )
     return CALL_REAL_OP();
@@ -311,6 +325,7 @@ PP(pp_overload_ft_int) {
 }
 
 PP(pp_overload_ft_nv) {
+  dMY_CXT;
   SV *status;
   int saved_errno;
 
@@ -321,7 +336,7 @@ PP(pp_overload_ft_nv) {
   RETURN_CALL_REAL_OP_IF_UNMOCK();
   RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV();
 
-  status = _overload_ft_ops_sv();
+  status = _overload_ft_ops_sv(aTHX);
 
   if ( !SvOK(status) ) { /* CHECK_IS_NULL — undef */
     SvREFCNT_dec(status);
@@ -357,6 +372,7 @@ PP(pp_overload_ft_nv) {
 }
 
 PP(pp_overload_stat) { /* stat & lstat */
+  dMY_CXT;
   Stat_t mocked_stat = { 0 };  /* fake stats */
   int check_status = 0;
   int size;
@@ -370,7 +386,7 @@ PP(pp_overload_stat) { /* stat & lstat */
   RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV();
 
   /* calling with our own tmp stat struct, instead of passing directly PL_statcache: more control */
-  check_status = _overload_ft_stat(&mocked_stat, &size);
+  check_status = _overload_ft_stat(aTHX_ &mocked_stat, &size);
 
   /* explicit ask for fallback */
   if ( check_status == -1 )
@@ -466,6 +482,7 @@ mock_op(optype)
       Overload::FileCheck::_xs_unmock_op             = 2
  CODE:
  {
+      dMY_CXT;
       int opid = 0;
 
       if ( ! SvIOK(optype) )
@@ -502,12 +519,13 @@ OUTPUT:
 
 
 BOOT:
-    if (!gl_overload_ft) {
+    {
          HV *stash;
          SV *sv;
          int ix = 0;
          const char *debug_env;
 
+         MY_CXT_INIT;
          Newxz( gl_overload_ft, 1, OverloadFTOps);
 
          debug_env = getenv("OVERLOAD_FILECHECK_DEBUG");
@@ -590,4 +608,27 @@ BOOT:
 
     }
 
+#ifdef USE_ITHREADS
+
+void
+CLONE(...)
+CODE:
+{
+    MY_CXT_CLONE;
+    /* Parent's overload_ft pointer was shallow-copied by MY_CXT_CLONE.
+     * Allocate a fresh struct for the child interpreter: copy the saved
+     * real_pp pointers (they're the same per-process) but start with
+     * all ops unmocked — each thread manages its own mock state. */
+    {
+        OverloadFTOps *parent_ft = gl_overload_ft;
+        int i;
+        Newxz(gl_overload_ft, 1, OverloadFTOps);
+        for (i = 0; i < OP_MAX; i++) {
+            gl_overload_ft->op[i].real_pp = parent_ft->op[i].real_pp;
+            /* is_mocked stays 0 from Newxz */
+        }
+    }
+}
+
+#endif
 
