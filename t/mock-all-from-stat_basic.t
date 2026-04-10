@@ -134,8 +134,8 @@ __DATA__
 -S 'my.socket'
 !-s 'my.socket'
 
-# a zero stat
-!-e 'zero'
+# a zero stat (stat succeeded with all-zero fields — file exists but has no type)
+-e 'zero'
 !-f 'zero'
 !-l 'zero'
 !-d 'zero'
