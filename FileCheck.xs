@@ -230,8 +230,8 @@ int _overload_ft_stat(pTHX_ Stat_t *stat, int *size) {
       croak( "Overload::FileCheck::_check need to return an array ref" );
 
     av_size = AvFILL(stat_array);
-    if ( av_size > 0 && av_size != ( STAT_T_MAX - 1 ) )
-      croak( "Overload::FileCheck::_check: Array should contain 13 elements" );
+    if ( av_size >= 0 && av_size != ( STAT_T_MAX - 1 ) )
+      croak( "Overload::FileCheck::_check: Array should contain 0 or 13 elements, got %d", av_size + 1 );
 
     *size = av_size; /* store the av_size */
     if ( av_size > 0 ) {

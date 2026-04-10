@@ -348,7 +348,7 @@ sub _check_from_stat {
         },
 
         # Existence and size (computed directly from cached stat)
-        e => sub { return CHECK_IS_NULL unless scalar @stat; _to_bool( $stat[ST_MODE] ) },  # file exists
+        e => sub { return CHECK_IS_NULL unless scalar @stat; CHECK_IS_TRUE },  # file exists (stat success implies existence)
         s => sub { $stat[ST_SIZE] },                                       # nonzero size (returns bytes); fallback breaks on symlinks
 
         # File type checks via mode bits (using @stat — follows symlinks)
