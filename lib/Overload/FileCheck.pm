@@ -218,19 +218,19 @@ sub mock_all_file_checks {
 
 sub _resolve_check {
     my ($check) = @_;
-    die q[Check is not defined] unless defined $check;
+    Carp::croak(q[Check is not defined]) unless defined $check;
     $check =~ s{^-+}{};    # strip any extra dashes
-    die qq[Unknown check '$check'] unless defined $MAP_FC_OP{$check};
+    Carp::croak(qq[Unknown check '$check']) unless defined $MAP_FC_OP{$check};
     return ( $check, $MAP_FC_OP{$check} );
 }
 
 sub mock_file_check {
     my ( $check, $sub ) = @_;
 
-    die q[Second arg must be a CODE ref] unless ref $sub eq 'CODE';
+    Carp::croak(q[Second arg must be a CODE ref]) unless ref $sub eq 'CODE';
 
     my ( $name, $optype ) = _resolve_check($check);
-    die qq[-$name is already mocked by Overload::FileCheck] if exists $_current_mocks->{$optype};
+    Carp::croak(qq[-$name is already mocked by Overload::FileCheck]) if exists $_current_mocks->{$optype};
 
     $_current_mocks->{$optype} = $sub;
 
@@ -399,7 +399,7 @@ sub _check_mode_type {
 sub mock_stat {
     my ($sub) = @_;
 
-    die q[First arg must be a CODE ref] unless ref $sub eq 'CODE';
+    Carp::croak(q[First arg must be a CODE ref]) unless ref $sub eq 'CODE';
 
     foreach my $opname (qw{stat lstat}) {
         my $optype = $MAP_FC_OP{$opname};
@@ -501,14 +501,14 @@ sub _normalize_stat_result {
 
     my $stat      = $out // $extra[0];
     my $stat_is_a = ref $stat;
-    die q[Your mocked function for stat should return a stat array or hash] unless $stat_is_a;
+    Carp::croak(q[Your mocked function for stat should return a stat array or hash]) unless $stat_is_a;
 
     my $stat_t_max = STAT_T_MAX;
 
     if ( $stat_is_a eq 'ARRAY' ) {
         my $av_size = scalar @$stat;
         if ( $av_size && $av_size != $stat_t_max ) {
-            die qq[Stat array should contain exactly 0 or $stat_t_max values];
+            Carp::croak(qq[Stat array should contain exactly 0 or $stat_t_max values]);
         }
         return $stat;
     }
@@ -518,13 +518,13 @@ sub _normalize_stat_result {
         foreach my $k ( keys %$stat ) {
             ( my $normalized = lc($k) ) =~ s{^st_}{};
             my $ix = $MAP_STAT_T_IX{"st_$normalized"};
-            die qq[Unknown index for stat_t struct key $k] unless defined $ix;
+            Carp::croak(qq[Unknown index for stat_t struct key $k]) unless defined $ix;
             $stat_as_arrayref->[$ix] = $stat->{$k};
         }
         return $stat_as_arrayref;
     }
 
-    die q[Your mocked function for stat should return a stat array or hash];
+    Carp::croak(q[Your mocked function for stat should return a stat array or hash]);
 }
 
 # accessors for testing purpose mainly
