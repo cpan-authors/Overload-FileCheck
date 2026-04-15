@@ -267,7 +267,7 @@ PP(pp_overload_ft_yes_no) {
     FT_SETUP_dSP_IF_NEEDED;
 
     if ( check_status == 1 )  FT_RETURNYES;
-    if ( check_status == 0 )  FT_RETURNUNDEF;
+    if ( check_status == 0 )  FT_RETURNNO;
     if ( check_status == -2 ) FT_RETURNUNDEF; /* CHECK_IS_NULL */
   }
 

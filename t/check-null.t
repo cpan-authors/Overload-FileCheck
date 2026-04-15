@@ -30,7 +30,11 @@ use Overload::FileCheck q(:all);
     is( -e "/null-test", 1, "-e CHECK_IS_TRUE returns 1" );
 
     $mock_return = CHECK_IS_FALSE;
-    ok( !defined( -e "/null-test" ), "-e CHECK_IS_FALSE returns undef (existing behaviour)" );
+    {
+        my $result = -e "/null-test";
+        ok( !$result, "-e CHECK_IS_FALSE is false" );
+        ok( defined($result), "-e CHECK_IS_FALSE is defined (not undef)" );
+    }
 
     $mock_return = CHECK_IS_NULL;    # undef
     ok( !defined( -e "/null-test" ), "-e CHECK_IS_NULL returns undef" );
