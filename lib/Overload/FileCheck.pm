@@ -622,6 +622,10 @@ sub _stat_for {
 
     # options that we can simply copy to a slot
     my %name2ix = (
+        dev     => ST_DEV,
+        ino     => ST_INO,
+        nlink   => ST_NLINK,
+        rdev    => ST_RDEV,
         size    => ST_SIZE,
         atime   => ST_ATIME,
         mtime   => ST_MTIME,
@@ -894,7 +898,7 @@ Available functions are:
 =back
 
 
-All of these functions take some optional arguments to set: uid, gid, size, atime, mtime, ctime, perms, size.
+All of these functions take some optional arguments to set: uid, gid, perms, dev, ino, nlink, rdev, size, atime, mtime, ctime, blksize, blocks.
 Example:
 
     use Overload::FileCheck -from-stat => \&my_stat, q{:check};
@@ -990,7 +994,7 @@ read L</" Mocking all file checks from a single 'stat' function"> for sample usa
 =head2 stat_as_directory( %OPTS )
 
 Create a stat array ref for a directory.
-%OPTS is optional and can set one or more using arguments among: uid, gid, size, atime, mtime, ctime, perms, size.
+%OPTS is optional and can set one or more using arguments among: uid, gid, perms, dev, ino, nlink, rdev, size, atime, mtime, ctime, blksize, blocks.
 read the section L</"Using stat_as_* helpers"> for some sample usages.
 
 =head2 stat_as_file( %OPTS )
