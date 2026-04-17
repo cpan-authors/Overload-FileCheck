@@ -142,7 +142,8 @@ my %MAP_STAT_T_IX = (
 # op_type_id => check
 my %REVERSE_MAP = reverse %MAP_FC_OP;
 
-my %OP_CAN_RETURN_INT   = map { $MAP_FC_OP{$_} => 1 } qw{ s M C A };
+my %OP_CAN_RETURN_INT   = map { $MAP_FC_OP{$_} => 1 } qw{ s };
+my %OP_RETURNS_NV       = map { $MAP_FC_OP{$_} => 1 } qw{ M C A };
 my %OP_IS_STAT_OR_LSTAT = map { $MAP_FC_OP{$_} => 1 } qw{ stat lstat };
 #
 # This is listing the default ERRNO codes
@@ -366,17 +367,19 @@ sub _check_from_stat {
         c => sub { _check_mode_type( $stat[ST_MODE], S_IFCHR ) },        # character special file
 
         # Age calculations: (basetime - timestamp) / seconds_per_day
+        # Returns scalar ref to distinguish real NV values from the
+        # FALLBACK_TO_REAL_OP sentinel (-1) — see _check() NV handling.
         M => sub {
             return CHECK_IS_NULL unless scalar @stat && defined $stat[ST_MTIME];
-            ( get_basetime() - $stat[ST_MTIME] ) / 86400.0;              # days since modification
+            \( ( get_basetime() - $stat[ST_MTIME] ) / 86400.0 );         # days since modification
         },
         A => sub {
             return CHECK_IS_NULL unless scalar @stat && defined $stat[ST_ATIME];
-            ( get_basetime() - $stat[ST_ATIME] ) / 86400.0;              # days since access
+            \( ( get_basetime() - $stat[ST_ATIME] ) / 86400.0 );         # days since access
         },
         C => sub {
             return CHECK_IS_NULL unless scalar @stat && defined $stat[ST_CTIME];
-            ( get_basetime() - $stat[ST_CTIME] ) / 86400.0;              # days since inode change
+            \( ( get_basetime() - $stat[ST_CTIME] ) / 86400.0 );         # days since inode change
         },
     );
 
@@ -480,6 +483,22 @@ sub _check {
             $! = $DEFAULT_ERRNO{ $REVERSE_MAP{$optype} || 'default' } || $DEFAULT_ERRNO{'default'};
         }
         return $out;
+    }
+
+    # NV ops (-M, -C, -A) return a (status, value) pair to avoid the -1
+    # sentinel collision: FALLBACK_TO_REAL_OP is -1, but -1.0 is a valid
+    # NV result (file modified exactly 1 day in the future).  The XS
+    # handler uses the status code instead of checking value == -1.
+    if ( $OP_RETURNS_NV{$optype} ) {
+        # Scalar ref: from _check_from_stat — always a real value, never FALLBACK
+        if ( ref $out eq 'SCALAR' ) {
+            return ( CHECK_IS_TRUE, $$out );
+        }
+        # Bare scalar: from direct mock_file_check callbacks
+        if ( !ref $out && $out == FALLBACK_TO_REAL_OP ) {
+            return (FALLBACK_TO_REAL_OP);
+        }
+        return ( CHECK_IS_TRUE, $out );
     }
 
     if ( !$out ) {
