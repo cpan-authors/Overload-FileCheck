@@ -174,8 +174,9 @@ void _overload_ft_ops_nv(pTHX_ int *status_out, NV *nv_out) {
   }
   else {
     /* Pop excess values to avoid stack corruption */
+    int orig_count = count;
     while (count-- > 0) (void)POPs;
-    croak("Overload::FileCheck::_check returned %d values for NV OP #%d, expected 1 or 2\n", count, optype);
+    croak("Overload::FileCheck::_check returned %d values for NV OP #%d, expected 1 or 2\n", orig_count, optype);
   }
 
   OFC_DEBUG("_overload_ft_ops_nv: status=%d optype=%d\n", *status_out, optype);
