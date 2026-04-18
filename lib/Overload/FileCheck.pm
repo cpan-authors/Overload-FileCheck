@@ -344,7 +344,7 @@ sub _check_from_stat {
         # Heuristic text/binary checks (use glob _ to pass the cached stat)
         T => sub { _xs_unmock_op($optype); _to_bool( scalar -T *_ ) },   # ASCII or UTF-8 text (heuristic)
         B => sub {                                                         # binary file (opposite of -T)
-            return CHECK_IS_TRUE if -d $f_or_fh;
+            return CHECK_IS_TRUE if @stat && ( $stat[ST_MODE] & _S_IFMT ) == S_IFDIR;
             _xs_unmock_op($optype);
             return _to_bool( scalar -B *_ );
         },
