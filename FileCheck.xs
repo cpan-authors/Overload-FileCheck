@@ -119,14 +119,25 @@ int _overload_ft_ops(pTHX) {
   return check_status;
 }
 
-SV* _overload_ft_ops_sv(pTHX) {
+/*
+* NV-specific helper for -M, -C, -A ops.
+*
+* _check() returns a (status, value) pair for NV ops to avoid the -1
+* sentinel collision: FALLBACK_TO_REAL_OP is -1, but -1.0 is a valid
+* NV result (file modified exactly 1 day in the future).
+*
+* Returns:
+*   *status_out = -1  -> FALLBACK_TO_REAL_OP (nv_out is unused)
+*   *status_out = -2  -> CHECK_IS_NULL / undef (nv_out is unused)
+*   *status_out =  1  -> success, *nv_out has the value
+*/
+void _overload_ft_ops_nv(pTHX_ int *status_out, NV *nv_out) {
   dMY_CXT;
   SV *const arg = *PL_stack_sp;
-  int optype = PL_op->op_type;  /* this is the current op_type we are mocking */
-  SV *status;        /* 1 -> YES ; 0 -> FALSE ; -1 -> delegate */
+  int optype = PL_op->op_type;
+  int count;
 
   dSP;
-  int count;
 
   ENTER;
   SAVETMPS;
@@ -138,21 +149,39 @@ SV* _overload_ft_ops_sv(pTHX) {
 
   PUTBACK;
 
-  count = call_pv("Overload::FileCheck::_check", G_SCALAR);
+  count = call_pv("Overload::FileCheck::_check", G_ARRAY);
 
   SPAGAIN;
 
-  if (count != 1)
+  if (count < 1)
     croak("No return value from Overload::FileCheck::_check for OP #%d\n", optype);
 
-  status = POPs;
-  SvREFCNT_inc( status );
+  if (count == 1) {
+    /* Single return: FALLBACK_TO_REAL_OP or CHECK_IS_NULL */
+    SV *sv = POPs;
+    if (!SvOK(sv))
+      *status_out = -2;  /* undef => CHECK_IS_NULL */
+    else
+      *status_out = SvIV(sv);  /* -1 for FALLBACK, -2 for NULL */
+    *nv_out = 0;
+  }
+  else if (count == 2) {
+    /* Pair return: (status_code, nv_value) */
+    SV *value_sv = POPs;
+    SV *status_sv = POPs;
+    *status_out = SvIV(status_sv);
+    *nv_out = SvNV(value_sv);
+  }
+  else {
+    /* Pop excess values to avoid stack corruption */
+    int orig_count = count;
+    while (count-- > 0) (void)POPs;
+    croak("Overload::FileCheck::_check returned %d values for NV OP #%d, expected 1 or 2\n", orig_count, optype);
+  }
 
-  OFC_DEBUG("_overload_ft_ops_sv: optype=%d\n", optype);
+  OFC_DEBUG("_overload_ft_ops_nv: status=%d optype=%d\n", *status_out, optype);
 
   LEAVE_PRESERVING_ERRNO();
-
-  return status;
 }
 
 /*
@@ -326,7 +355,8 @@ PP(pp_overload_ft_int) {
 
 PP(pp_overload_ft_nv) {
   dMY_CXT;
-  SV *status;
+  int check_status;
+  NV nv_value;
   int saved_errno;
 
   if (!gl_overload_ft)
@@ -336,36 +366,28 @@ PP(pp_overload_ft_nv) {
   RETURN_CALL_REAL_OP_IF_UNMOCK();
   RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV();
 
-  status = _overload_ft_ops_sv(aTHX);
+  /* _overload_ft_ops_nv uses G_ARRAY and a status code to avoid the -1
+   * sentinel collision: FALLBACK_TO_REAL_OP is -1, but -1.0 is a valid
+   * NV result (e.g. file modified exactly 1 day in the future). */
+  _overload_ft_ops_nv(aTHX_ &check_status, &nv_value);
 
-  if ( !SvOK(status) ) { /* CHECK_IS_NULL — undef */
-    SvREFCNT_dec(status);
+  if ( check_status == -1 )
+    return CALL_REAL_OP();
+
+  if ( check_status == -2 ) { /* CHECK_IS_NULL */
     FT_SETUP_dSP_IF_NEEDED;
     FT_RETURNUNDEF;
   }
 
-  /* Save errno — sv_setnv()/sv_setiv() and FT_RETURN_TARG can trigger
-   * allocations or other Perl internals that clobber errno. */
+  /* Save errno — sv_setnv() and FT_RETURN_TARG can trigger allocations
+   * or other Perl internals that clobber errno. */
   saved_errno = errno;
-
-  /* Check for FALLBACK_TO_REAL_OP sentinel (-1) across all SV types */
-  if ( SvNV(status) == -1 ) {
-    SvREFCNT_dec(status);
-    return CALL_REAL_OP();
-  }
 
   {
     dTARGET;
     FT_SETUP_dSP_IF_NEEDED;
 
-    if ( SvNOK(status) )
-      sv_setnv(TARG, (NV) SvNV(status) );
-    else if ( SvIOK(status) )
-      sv_setiv(TARG, (IV) SvIV(status) );
-    else
-      sv_setnv(TARG, (NV) SvNV(status) );
-
-    SvREFCNT_dec(status);
+    sv_setnv(TARG, nv_value);
     errno = saved_errno;
     FT_RETURN_TARG;
   }
