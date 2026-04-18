@@ -195,6 +195,10 @@ sub import {
         }
     }
 
+    if ( defined $_next_check ) {
+        Carp::croak(qq[Missing CODE ref for mock '$_next_check' in import list]);
+    }
+
     # callback the exporter logic
     return __PACKAGE__->export_to_level( 1, $class, @for_exporter );
 }
@@ -342,7 +346,9 @@ sub _check_from_stat {
         # Heuristic text/binary checks (use glob _ to pass the cached stat)
         T => sub { _xs_unmock_op($optype); _to_bool( scalar -T *_ ) },   # ASCII or UTF-8 text (heuristic)
         B => sub {                                                         # binary file (opposite of -T)
-            return CHECK_IS_TRUE if -d $f_or_fh;
+            # Check directory via mode bits directly instead of calling the
+            # mocked -d operator, which would trigger a redundant stat callback.
+            return CHECK_IS_TRUE if _check_mode_type( $stat[ST_MODE], S_IFDIR ) == CHECK_IS_TRUE;
             _xs_unmock_op($optype);
             return _to_bool( scalar -B *_ );
         },
