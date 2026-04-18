@@ -195,6 +195,10 @@ sub import {
         }
     }
 
+    if ( defined $_next_check ) {
+        Carp::croak(qq[Missing CODE ref for mock '$_next_check' in import list]);
+    }
+
     # callback the exporter logic
     return __PACKAGE__->export_to_level( 1, $class, @for_exporter );
 }
