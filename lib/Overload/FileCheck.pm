@@ -287,10 +287,11 @@ sub _check_from_stat {
     #   or if we let it fallback to the Perl OP
     # 2/ doing a second stat call in order to cache _
 
-    my $can_use_stat;
-    $can_use_stat = 1 if $check =~ qr{^[sfdMXxzACORWeorwugk]$};
+    # In Perl, only -l uses lstat (does not follow symlinks).
+    # All other file test ops use stat (follows symlinks).
+    my $use_lstat = ( $check eq 'l' );
 
-    my $stat_or_lstat = $can_use_stat ? 'stat' : 'lstat';
+    my $stat_or_lstat = $use_lstat ? 'lstat' : 'stat';
 
     my (@mocked_lstat_result) = $sub_for_stat->( $stat_or_lstat, $f_or_fh );
     if (   scalar @mocked_lstat_result == 1
@@ -307,13 +308,13 @@ sub _check_from_stat {
     # now performing a real stat call [ using the mocked stat function ]
     my ( @stat, @lstat );
 
-    if ($can_use_stat) {
-        no warnings;    # throw warnings with Perl <= 5.14
-        @stat = stat($f_or_fh) if defined $f_or_fh;
-    }
-    else {
+    if ($use_lstat) {
         no warnings;
         @lstat = lstat($f_or_fh) if defined $f_or_fh;
+    }
+    else {
+        no warnings;    # throw warnings with Perl <= 5.14
+        @stat = stat($f_or_fh) if defined $f_or_fh;
     }
 
     # Dispatch table mapping each check letter to its handler.
@@ -355,12 +356,14 @@ sub _check_from_stat {
         f => sub { _check_mode_type( $stat[ST_MODE],  S_IFREG ) },       # plain file
         d => sub { _check_mode_type( $stat[ST_MODE],  S_IFDIR ) },       # directory
 
-        # File type checks via mode bits (using @lstat — does not follow symlinks)
+        # Symlink check — only op that uses lstat (does not follow symlinks)
         l => sub { _check_mode_type( $lstat[ST_MODE], S_IFLNK ) },       # symbolic link
-        p => sub { _check_mode_type( $lstat[ST_MODE], S_IFIFO ) },       # named pipe (FIFO)
-        S => sub { _check_mode_type( $lstat[ST_MODE], S_IFSOCK ) },      # socket
-        b => sub { _check_mode_type( $lstat[ST_MODE], S_IFBLK ) },       # block special file
-        c => sub { _check_mode_type( $lstat[ST_MODE], S_IFCHR ) },       # character special file
+
+        # File type checks via mode bits (using @stat — follows symlinks like Perl)
+        p => sub { _check_mode_type( $stat[ST_MODE], S_IFIFO ) },        # named pipe (FIFO)
+        S => sub { _check_mode_type( $stat[ST_MODE], S_IFSOCK ) },       # socket
+        b => sub { _check_mode_type( $stat[ST_MODE], S_IFBLK ) },        # block special file
+        c => sub { _check_mode_type( $stat[ST_MODE], S_IFCHR ) },        # character special file
 
         # Age calculations: (basetime - timestamp) / seconds_per_day
         M => sub {
@@ -378,7 +381,7 @@ sub _check_from_stat {
     );
 
     my $handler = $dispatch{$check}
-        or die "Unknown check $check.\n";
+        or Carp::croak(qq[Unknown check '$check']);
     return $handler->();
 }
 
@@ -403,7 +406,7 @@ sub mock_stat {
 
     foreach my $opname (qw{stat lstat}) {
         my $optype = $MAP_FC_OP{$opname};
-        die qq[No optype found for $opname] unless $optype;
+        Carp::croak(qq[No optype found for $opname]) unless $optype;
 
         # plug the sub
         $_current_mocks->{$optype} = sub {
