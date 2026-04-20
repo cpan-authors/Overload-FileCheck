@@ -34,6 +34,7 @@ is stat_as_symlink(),   [ 0, 0, S_IFLNK,  (0) x 10 ], 'stat_as_symlink';
 is stat_as_socket(),    [ 0, 0, S_IFSOCK, (0) x 10 ], 'stat_as_socket';
 is stat_as_chr(),       [ 0, 0, S_IFCHR,  (0) x 10 ], 'stat_as_chr';
 is stat_as_block(),     [ 0, 0, S_IFBLK,  (0) x 10 ], 'stat_as_block';
+is stat_as_fifo(),      [ 0, 0, S_IFIFO,  (0) x 10 ], 'stat_as_fifo';
 
 if ( $> == 0 ) {
     my ($username, $gid) = (getpwuid $>)[0, 3];

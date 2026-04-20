@@ -31,7 +31,7 @@ Makefile.PL is auto-generated from dist.ini — edit dist.ini for build configur
 
 ### Two-layer design
 
-**Perl layer** (`lib/Overload/FileCheck.pm`): Public API — `mock_file_check`, `mock_stat`, `mock_lstat`, `mock_all_file_checks`, `mock_all_from_stat`, and their `unmock_*` counterparts. Manages the mapping from operator names (e.g., '-e') to Perl OP types (e.g., `OP_FTIS`). Provides export groups `:check` (return value constants), `:stat` (stat index constants and helpers like `stat_as_file()`), and `:all`.
+**Perl layer** (`lib/Overload/FileCheck.pm`): Public API — `mock_file_check`, `mock_stat`, `mock_all_file_checks`, `mock_all_from_stat`, and their `unmock_*` counterparts. `mock_stat` handles both stat and lstat (there is no separate `mock_lstat`). Manages the mapping from operator names (e.g., '-e') to Perl OP types (e.g., `OP_FTIS`). Provides export groups `:check` (return value constants), `:stat` (stat index constants and helpers like `stat_as_file()`), and `:all`.
 
 **XS layer** (`FileCheck.xs` + `FileCheck.h`): Replaces Perl's default `pp_*` OP handlers with custom ones that call back into Perl. Three handler types: `pp_overload_ft_yes_no` (boolean ops like -e, -f), `pp_overload_ft_int`/`pp_overload_ft_nv` (numeric ops like -s, -M), and `pp_overload_stat` (stat/lstat). `FileCheck.h` contains compatibility macros for Perl 5.14 vs 5.15+ internal API differences.
 
