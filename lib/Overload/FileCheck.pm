@@ -634,11 +634,21 @@ sub _stat_for {
         blocks  => ST_BLOCKS,
     );
 
+    # all valid option names (after normalization: lc + strip st_ prefix)
+    my %known_opts = ( perms => 1, uid => 1, gid => 1, map { $_ => 1 } keys %name2ix );
+
     foreach my $orig_key ( keys %$opts ) {
         my $k = lc($orig_key);
         $k =~ s{^st_}{};
-        next unless defined $name2ix{$k};
 
+        unless ( $known_opts{$k} ) {
+            if ( $k eq 'mode' ) {
+                Carp::croak("Unknown option '$orig_key': use 'perms' for permission bits (file type is set automatically)");
+            }
+            Carp::croak("Unknown option '$orig_key' passed to stat helper");
+        }
+
+        next unless defined $name2ix{$k};
         $stat[ $name2ix{$k} ] = $opts->{$orig_key};
     }
 
