@@ -58,7 +58,7 @@ my @STAT_T_IX = qw{
 my @CHECK_STATUS = qw{CHECK_IS_FALSE CHECK_IS_TRUE CHECK_IS_NULL FALLBACK_TO_REAL_OP};
 
 my @STAT_HELPERS = qw{ stat_as_directory stat_as_file stat_as_symlink
-  stat_as_socket stat_as_chr stat_as_block};
+  stat_as_socket stat_as_chr stat_as_block stat_as_fifo};
 
 our @EXPORT_OK = (
     qw{
@@ -600,6 +600,12 @@ sub stat_as_block {
     return _stat_for( S_IFBLK, \%opts );
 }
 
+sub stat_as_fifo {
+    my (%opts) = @_;
+
+    return _stat_for( S_IFIFO, \%opts );
+}
+
 sub _stat_for {
     my ( $type, $opts ) = @_;
 
@@ -921,6 +927,8 @@ Available functions are:
 
 =item stat_as_block
 
+=item stat_as_fifo
+
 =back
 
 
@@ -1046,6 +1054,11 @@ view stat_as_directory and L</"Using stat_as_* helpers"> for some sample usages
 =head2 stat_as_block( %OPTS )
 
 Create a stat array ref for an empty block device
+view stat_as_directory and L</"Using stat_as_* helpers"> for some sample usages
+
+=head2 stat_as_fifo( %OPTS )
+
+Create a stat array ref for a named pipe (FIFO)
 view stat_as_directory and L</"Using stat_as_* helpers"> for some sample usages
 
 =head1 Notice
