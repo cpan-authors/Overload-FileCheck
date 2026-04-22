@@ -653,7 +653,7 @@ sub _stat_for {
 
 =begin markdown
 
-[![](https://github.com/CpanelInc/Overload-FileCheck/workflows/linux/badge.svg)](https://github.com/CpanelInc/Overload-FileCheck/actions) [![](https://github.com/CpanelInc/Overload-FileCheck/workflows/macos/badge.svg)](https://github.com/CpanelInc/Overload-FileCheck/actions) [![](https://github.com/CpanelInc/Overload-FileCheck/workflows/windows/badge.svg)](https://github.com/CpanelInc/Overload-FileCheck/actions)
+[![](https://github.com/cpan-authors/Overload-FileCheck/workflows/linux/badge.svg)](https://github.com/cpan-authors/Overload-FileCheck/actions)
 
 =end markdown
 
@@ -670,12 +670,6 @@ By using mock_all_file_checks you can set a hook function to reply any -X check.
 =head1 DESCRIPTION
 
 Overload::FileCheck provides a hook system to mock Perl filechecks OPs
-
-=begin HTML
-
-<p><img src="https://travis-ci.org/CpanelInc/Overload-FileCheck.svg?branch=master" width="81" height="18" alt="Travis CI" /></p>
-
-=end HTML
 
 With this module you can provide your own pure perl code when performing
 file checks using one of the -X ops: -e, -f, -z, ...
