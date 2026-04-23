@@ -360,7 +360,7 @@ sub _check_from_stat {
         B => sub {                                                         # binary file (opposite of -T)
             # Check directory via mode bits directly instead of calling the
             # mocked -d operator, which would trigger a redundant stat callback.
-            return CHECK_IS_TRUE if _check_mode_type( $stat[ST_MODE], S_IFDIR ) == CHECK_IS_TRUE;
+            return CHECK_IS_TRUE if @stat && _check_mode_type( $stat[ST_MODE], S_IFDIR ) == CHECK_IS_TRUE;
             _xs_unmock_op($optype);
             return _to_bool( scalar -B *_ );
         },
