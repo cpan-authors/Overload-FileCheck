@@ -2,6 +2,8 @@ Revision history for Overload-FileCheck
 
 {{$NEXT}}
 
+0.015     2026-04-26 09:46:08+02:00 Europe/Vienna
+
   [New features]
   - feat: add mock_file_check_guard() for scope-based cleanup
   - feat: add stat_as_fifo() helper for named pipe mocking
