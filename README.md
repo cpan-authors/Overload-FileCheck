@@ -4,7 +4,7 @@ Overload::FileCheck - override/mock perl file check -X: -e, -f, -d, ...
 
 # VERSION
 
-version 0.014
+version 0.015
 
 # SYNOPSIS
 
@@ -62,8 +62,6 @@ done_testing;
 
 Overload::FileCheck provides a hook system to mock Perl filechecks OPs
 
-[![](https://github.com/cpan-authors/Overload-FileCheck/workflows/linux/badge.svg)](https://github.com/cpan-authors/Overload-FileCheck/actions)
-
 With this module you can provide your own pure perl code when performing
 file checks using one of the -X ops: -e, -f, -z, ...
 
@@ -104,6 +102,8 @@ platforms)
 Also view pp\_sys.c from the Perl source code, where are defined the original OPs.
 
 In addition it's also possible to mock the Perl OP `stat` and `lstat`, read ["Mocking stat and lstat"](#mocking-stat-and-lstat) section for more details.
+
+[![](https://github.com/cpan-authors/Overload-FileCheck/workflows/linux/badge.svg)](https://github.com/cpan-authors/Overload-FileCheck/actions)
 
 # Usage and Examples
 
@@ -456,7 +456,7 @@ When mocking stat or lstat function your callback function should return one of 
 - either one ARRAY Ref containing 13 entries as described by the stat function (in the same order)
 - or an empty ARRAY Ref, if the file does not exist
 - or one HASH ref using one or more of the following keys: st\_dev, st\_ino, st\_mode, st\_nlink,
-  st\_uid, st\_gid, st\_rdev, st\_size, st\_atime, st\_mtime, st\_ctime, st\_blksiz, st\_blocks
+  st\_uid, st\_gid, st\_rdev, st\_size, st\_atime, st\_mtime, st\_ctime, st\_blksize, st\_blocks
 - or return FALLBACK\_TO\_REAL\_OP when you want to let Perl take back the control for that file
 
 In order to manipulate the ARRAY ref and insert/update one specific entry, some constant are available
@@ -560,8 +560,9 @@ Available functions are:
 - stat\_as\_socket
 - stat\_as\_chr
 - stat\_as\_block
+- stat\_as\_fifo
 
-All of these functions take some optional arguments to set: uid, gid, size, atime, mtime, ctime, perms, size.
+All of these functions take some optional arguments to set: uid, gid, perms, dev, ino, nlink, rdev, size, atime, mtime, ctime, blksize, blocks.
 Example:
 
 ```perl
@@ -607,6 +608,23 @@ Otherwise returns 1 on success.
 # in that sample all '-e' checks will always return true...
 mock_file_check( '-e' => sub { 1 } )
 ```
+
+## mock\_file\_check\_guard( $check, CODE )
+
+Like `mock_file_check`, but returns a guard object instead of `1`.
+When the guard goes out of scope (or is otherwise destroyed), the mock is
+automatically removed via `unmock_file_check`.  This improves test isolation
+by guaranteeing cleanup even if the test dies.
+
+```perl
+{
+    my $guard = mock_file_check_guard( '-e' => sub { CHECK_IS_TRUE } );
+    ok( -e "/fake/file", "mocked" );
+}
+# -e is automatically unmocked here
+```
+
+Call `$guard->cancel` to prevent the automatic unmock.
 
 ## unmock\_file\_check( $check, \[@extra\_checks\] )
 
@@ -664,7 +682,7 @@ read [" Mocking all file checks from a single 'stat' function"](#mocking-all-fil
 ## stat\_as\_directory( %OPTS )
 
 Create a stat array ref for a directory.
-%OPTS is optional and can set one or more using arguments among: uid, gid, size, atime, mtime, ctime, perms, size.
+%OPTS is optional and can set one or more using arguments among: uid, gid, perms, dev, ino, nlink, rdev, size, atime, mtime, ctime, blksize, blocks.
 read the section ["Using stat\_as\_\* helpers"](#using-stat_as_-helpers) for some sample usages.
 
 ## stat\_as\_file( %OPTS )
@@ -692,6 +710,11 @@ view stat\_as\_directory and ["Using stat\_as\_\* helpers"](#using-stat_as_-help
 Create a stat array ref for an empty block device
 view stat\_as\_directory and ["Using stat\_as\_\* helpers"](#using-stat_as_-helpers) for some sample usages
 
+## stat\_as\_fifo( %OPTS )
+
+Create a stat array ref for a named pipe (FIFO)
+view stat\_as\_directory and ["Using stat\_as\_\* helpers"](#using-stat_as_-helpers) for some sample usages
+
 # Notice
 
 This is a very early development stage and some behavior might change before the release of a more stable build.
@@ -707,21 +730,11 @@ This code was mainly designed to be used during unit tests. It's far from being 
 Code loaded/interpreted before mocking a file check, would not take benefit of Overload::FileCheck.
 You probably want to load and call the mock function of Overload::FileCheck as early as possible.
 
-## Empty string instead of Undef
-
-Several test operators once mocked will not return the expected 'undef' value but one empty string
-instead. This is a future improvement. If you check the output of -X operators in boolean context
-it should not impact you.
-
 ## -B and -T are using heuristics
 
 File check operators like -B and -T are using heuristics to guess if the file content is binary or text.
 By using mock\_all\_from\_stat or ('-from-stat' at import time), we cannot provide an accurate -B or -T checks.
 You would need to provide a custom hooks for them
-
-# TODO
-
-- support for 'undef' using CHECK\_IS\_UNDEF as valid return (in addition to CHECK\_IS\_FALSE)
 
 # LICENSE
 
