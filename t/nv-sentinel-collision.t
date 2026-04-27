@@ -136,4 +136,72 @@ subtest 'mock_all_from_stat: other NV values pass through correctly' => sub {
     unmock_stat();
 };
 
+subtest 'direct mock_file_check: -M returns -1.0 without sentinel collision' => sub {
+    mock_file_check( '-M' => sub {
+        my ($file) = @_;
+        return -1.0 if $file eq '/test/exactly_minus_one';
+        return FALLBACK_TO_REAL_OP;
+    });
+
+    my $age = -M '/test/exactly_minus_one';
+    ok( defined $age, '-M returns a defined value (not undef from fallback)' );
+    ok( abs($age - (-1.0)) < 0.01, "-M returns -1.0 (got: $age)" )
+        if defined $age;
+
+    my $real = -M '/nonexistent/direct/mock/fallback';
+    ok( !defined $real, 'FALLBACK_TO_REAL_OP still delegates to real OP' );
+
+    unmock_file_check('-M');
+};
+
+subtest 'direct mock_file_check: -A returns -1.0 without sentinel collision' => sub {
+    mock_file_check( '-A' => sub {
+        my ($file) = @_;
+        return -1.0 if $file eq '/test/exactly_minus_one';
+        return FALLBACK_TO_REAL_OP;
+    });
+
+    my $age = -A '/test/exactly_minus_one';
+    ok( defined $age, '-A returns a defined value' );
+    ok( abs($age - (-1.0)) < 0.01, "-A returns -1.0 (got: $age)" )
+        if defined $age;
+
+    unmock_file_check('-A');
+};
+
+subtest 'direct mock_file_check: -C returns -1.0 without sentinel collision' => sub {
+    mock_file_check( '-C' => sub {
+        my ($file) = @_;
+        return -1.0 if $file eq '/test/exactly_minus_one';
+        return FALLBACK_TO_REAL_OP;
+    });
+
+    my $age = -C '/test/exactly_minus_one';
+    ok( defined $age, '-C returns a defined value' );
+    ok( abs($age - (-1.0)) < 0.01, "-C returns -1.0 (got: $age)" )
+        if defined $age;
+
+    unmock_file_check('-C');
+};
+
+subtest 'FALLBACK_TO_REAL_OP constant backward compat' => sub {
+    ok( FALLBACK_TO_REAL_OP == -1, 'numeric comparison still works' );
+    ok( FALLBACK_TO_REAL_OP < 0,   'numeric ordering still works' );
+};
+
+subtest 'direct mock_file_check: scalar ref workaround also works' => sub {
+    mock_file_check( '-M' => sub {
+        my ($file) = @_;
+        return \(-1.0) if $file eq '/test/ref_wrap';
+        return FALLBACK_TO_REAL_OP;
+    });
+
+    my $age = -M '/test/ref_wrap';
+    ok( defined $age, '-M returns defined for scalar ref wrapped -1.0' );
+    ok( abs($age - (-1.0)) < 0.01, "-M returns -1.0 via scalar ref (got: $age)" )
+        if defined $age;
+
+    unmock_file_check('-M');
+};
+
 done_testing;

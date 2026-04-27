@@ -511,8 +511,10 @@ sub _check {
         if ( ref $out eq 'SCALAR' ) {
             return ( CHECK_IS_TRUE, $$out );
         }
-        # Bare scalar: from direct mock_file_check callbacks
-        if ( !ref $out && $out == FALLBACK_TO_REAL_OP ) {
+        # Bare scalar: from direct mock_file_check callbacks.
+        # Use string comparison to detect the dualvar sentinel —
+        # numeric == would collide with a real -1.0 value.
+        if ( !ref $out && "$out" eq '__OFC_FALLBACK__' ) {
             return (FALLBACK_TO_REAL_OP);
         }
         return ( CHECK_IS_TRUE, $out );
