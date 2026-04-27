@@ -562,7 +562,19 @@ BOOT:
          newCONSTSUB(stash, "CHECK_IS_TRUE",         &PL_sv_yes );   /* could use newSViv(1) or &PL_sv_yes */
          newCONSTSUB(stash, "CHECK_IS_FALSE",        &PL_sv_no );    /* could use newSViv(0) or &PL_sv_no  */
          newCONSTSUB(stash, "CHECK_IS_NULL",         &PL_sv_undef );
-         newCONSTSUB(stash, "FALLBACK_TO_REAL_OP",  newSVnv(-1) );
+         /* FALLBACK_TO_REAL_OP is a dualvar: numeric -1, string
+          * "__OFC_FALLBACK__".  The string form lets the Perl-layer
+          * _check() distinguish a real -1.0 NV result (e.g. -M on a
+          * file 1 day in the future) from the sentinel.  Numeric
+          * comparisons (== -1) keep working for backward compat. */
+         {
+             SV *fb = newSVnv(-1);
+             sv_setpv(fb, "__OFC_FALLBACK__");
+             SvNOK_on(fb);
+             SvIOK_on(fb);
+             SvIV_set(fb, -1);
+             newCONSTSUB(stash, "FALLBACK_TO_REAL_OP", fb);
+         }
 
          /* provide constants to add entry in a fake stat array */
 
