@@ -628,43 +628,6 @@ sub _stat_for {
 
     my @stat = ( (0) x STAT_T_MAX );
 
-    # set file type
-    if ( defined $type ) {
-
-        # _S_IFMT is used as a protection to do not flip outside the mask
-        $stat[ST_MODE] |= ( $type & _S_IFMT );
-    }
-
-    # set permission using octal
-    if ( defined $opts->{perms} ) {
-
-        # _S_IFMT is used as a protection to do not flip outside the mask
-        $stat[ST_MODE] |= ( $opts->{perms} & ~_S_IFMT );
-    }
-
-    # deal with UID / GID
-    if ( defined $opts->{uid} ) {
-        if ( $opts->{uid} =~ qr{^[0-9]+$} ) {
-            $stat[ST_UID] = $opts->{uid};
-        }
-        else {
-            my $uid = getpwnam( $opts->{uid} );
-            Carp::croak("Unknown user '$opts->{uid}' passed to uid option") unless defined $uid;
-            $stat[ST_UID] = $uid;
-        }
-    }
-
-    if ( defined $opts->{gid} ) {
-        if ( $opts->{gid} =~ qr{^[0-9]+$} ) {
-            $stat[ST_GID] = $opts->{gid};
-        }
-        else {
-            my $gid = getgrnam( $opts->{gid} );
-            Carp::croak("Unknown group '$opts->{gid}' passed to gid option") unless defined $gid;
-            $stat[ST_GID] = $gid;
-        }
-    }
-
     # options that we can simply copy to a slot
     my %name2ix = (
         dev     => ST_DEV,
@@ -682,6 +645,9 @@ sub _stat_for {
     # all valid option names (after normalization: lc + strip st_ prefix)
     my %known_opts = ( perms => 1, uid => 1, gid => 1, map { $_ => 1 } keys %name2ix );
 
+    # Normalize all option keys upfront (lc + strip st_ prefix) so that
+    # uid/gid/perms handlers work with all key variants (e.g. st_uid, ST_GID).
+    my %norm;
     foreach my $orig_key ( keys %$opts ) {
         my $k = lc($orig_key);
         $k =~ s{^st_}{};
@@ -693,8 +659,50 @@ sub _stat_for {
             Carp::croak("Unknown option '$orig_key' passed to stat helper");
         }
 
+        $norm{$k} = $opts->{$orig_key};
+    }
+
+    # set file type
+    if ( defined $type ) {
+
+        # _S_IFMT is used as a protection to do not flip outside the mask
+        $stat[ST_MODE] |= ( $type & _S_IFMT );
+    }
+
+    # set permission using octal
+    if ( defined $norm{perms} ) {
+
+        # _S_IFMT is used as a protection to do not flip outside the mask
+        $stat[ST_MODE] |= ( $norm{perms} & ~_S_IFMT );
+    }
+
+    # deal with UID / GID
+    if ( defined $norm{uid} ) {
+        if ( $norm{uid} =~ qr{^[0-9]+$} ) {
+            $stat[ST_UID] = $norm{uid};
+        }
+        else {
+            my $uid = getpwnam( $norm{uid} );
+            Carp::croak("Unknown user '$norm{uid}' passed to uid option") unless defined $uid;
+            $stat[ST_UID] = $uid;
+        }
+    }
+
+    if ( defined $norm{gid} ) {
+        if ( $norm{gid} =~ qr{^[0-9]+$} ) {
+            $stat[ST_GID] = $norm{gid};
+        }
+        else {
+            my $gid = getgrnam( $norm{gid} );
+            Carp::croak("Unknown group '$norm{gid}' passed to gid option") unless defined $gid;
+            $stat[ST_GID] = $gid;
+        }
+    }
+
+    # copy remaining simple slots
+    foreach my $k ( keys %norm ) {
         next unless defined $name2ix{$k};
-        $stat[ $name2ix{$k} ] = $opts->{$orig_key};
+        $stat[ $name2ix{$k} ] = $norm{$k};
     }
 
     return \@stat;
