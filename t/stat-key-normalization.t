@@ -50,4 +50,37 @@ my @base = ( 0, 0, S_IFREG, (0) x 10 );
     is stat_as_file( Mtime => 12345 ), $expect, 'mixed-case Mtime key';
 }
 
+# uid/gid with st_ prefix — should resolve through getpwnam/getgrnam path
+# (or set numeric value directly)
+{
+    my $expect = [@base];
+    $expect->[4] = 42;
+    is stat_as_file( st_uid => 42 ), $expect, 'st_uid prefix sets uid slot';
+}
+
+{
+    my $expect = [@base];
+    $expect->[4] = 99;
+    is stat_as_file( ST_UID => 99 ), $expect, 'ST_UID uppercase prefix sets uid slot';
+}
+
+{
+    my $expect = [@base];
+    $expect->[5] = 7;
+    is stat_as_file( st_gid => 7 ), $expect, 'st_gid prefix sets gid slot';
+}
+
+{
+    my $expect = [@base];
+    $expect->[5] = 100;
+    is stat_as_file( ST_GID => 100 ), $expect, 'ST_GID uppercase prefix sets gid slot';
+}
+
+# perms with mixed case
+{
+    my $expect = [@base];
+    $expect->[2] = S_IFREG | 0755;
+    is stat_as_file( Perms => 0755 ), $expect, 'Perms mixed-case sets mode bits';
+}
+
 done_testing;
