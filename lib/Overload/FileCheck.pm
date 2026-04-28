@@ -356,7 +356,15 @@ sub _check_from_stat {
         k => sub { _xs_unmock_op($optype); _to_bool( scalar -k _ ) },    # sticky bit
 
         # Heuristic text/binary checks (use glob _ to pass the cached stat)
-        T => sub { return CHECK_IS_NULL unless @stat; _xs_unmock_op($optype); _to_bool( scalar -T *_ ) },   # ASCII or UTF-8 text (heuristic)
+        T => sub {                                                         # ASCII or UTF-8 text (heuristic)
+            return CHECK_IS_NULL unless @stat;                             # file not found
+            # Directories are always "text" in Perl (like -B, which also
+            # returns true for dirs).  Short-circuit to avoid opening a
+            # possibly non-existent path on disk for the heuristic check.
+            return CHECK_IS_TRUE if _check_mode_type( $stat[ST_MODE], S_IFDIR ) == CHECK_IS_TRUE;
+            _xs_unmock_op($optype);
+            return _to_bool( scalar -T *_ );
+        },
         B => sub {                                                         # binary file (opposite of -T)
             return CHECK_IS_NULL unless @stat;                             # file not found
             # Check directory via mode bits directly instead of calling the
@@ -368,7 +376,7 @@ sub _check_from_stat {
 
         # Existence and size (computed directly from cached stat)
         e => sub { return CHECK_IS_NULL unless scalar @stat; CHECK_IS_TRUE },  # file exists (stat success implies existence)
-        s => sub { $stat[ST_SIZE] },                                       # nonzero size (returns bytes); fallback breaks on symlinks
+        s => sub { return CHECK_IS_NULL unless @stat; $stat[ST_SIZE] },    # nonzero size (returns bytes); fallback breaks on symlinks
 
         # File type checks via mode bits (using @stat — follows symlinks)
         f => sub { _check_mode_type( $stat[ST_MODE],  S_IFREG ) },       # plain file
