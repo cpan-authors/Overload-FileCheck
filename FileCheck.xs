@@ -52,7 +52,8 @@ START_MY_CXT
 #define RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV() STMT_START { \
     if (gl_overload_ft->op[OP_STAT].is_mocked) { \
       SV *arg = *PL_stack_sp; GV *gv; \
-      if ( SvTYPE(arg) == SVt_PVAV ) arg = arg + AvMAX( arg ); \
+      if ( SvTYPE(arg) == SVt_PVAV && AvMAX((AV*)arg) >= 0 ) \
+        arg = arg + AvMAX( arg ); \
       if ( PL_op->op_flags & OPf_REF ) \
         gv = cGVOP_gv; \
       else { \
