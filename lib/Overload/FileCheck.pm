@@ -368,7 +368,7 @@ sub _check_from_stat {
 
         # Existence and size (computed directly from cached stat)
         e => sub { return CHECK_IS_NULL unless scalar @stat; CHECK_IS_TRUE },  # file exists (stat success implies existence)
-        s => sub { $stat[ST_SIZE] },                                       # nonzero size (returns bytes); fallback breaks on symlinks
+        s => sub { return CHECK_IS_NULL unless scalar @stat; $stat[ST_SIZE] }, # nonzero size (returns bytes); fallback breaks on symlinks
 
         # File type checks via mode bits (using @stat — follows symlinks)
         f => sub { _check_mode_type( $stat[ST_MODE],  S_IFREG ) },       # plain file
@@ -823,14 +823,16 @@ In your callback function you should use the following helpers to return.
 
 =item B<CHECK_IS_FALSE>: use this constant when the test is false
 
-=item B<CHECK_IS_TRUE>: use this when you the test is true
+=item B<CHECK_IS_TRUE>: use this when the test is true
+
+=item B<CHECK_IS_NULL>: return this when the file does not exist (the -X op returns undef to the caller, and errno is set automatically)
 
 =item B<FALLBACK_TO_REAL_OP>: you want to delegate the answer to Perl itself :-)
 
 =back
 
-It's also possible to return one integer. Checks like C<-s>, C<-M>, C<-C>, C<-A> can return
-any integers.
+It's also possible to return a numeric value. C<-s> returns the file size in bytes.
+C<-M>, C<-C>, and C<-A> return the file age in (fractional) days.
 
 Example:
 
@@ -892,7 +894,8 @@ When mocking stat or lstat function your callback function should return one of 
 =item or an empty ARRAY Ref, if the file does not exist
 
 =item or one HASH ref using one or more of the following keys: st_dev, st_ino, st_mode, st_nlink,
-  st_uid, st_gid, st_rdev, st_size, st_atime, st_mtime, st_ctime, st_blksize, st_blocks
+  st_uid, st_gid, st_rdev, st_size, st_atime, st_mtime, st_ctime, st_blksize, st_blocks.
+  The C<st_> prefix is optional and case-insensitive (e.g., C<size>, C<ST_SIZE>, and C<st_size> are all equivalent)
 
 =item or return FALLBACK_TO_REAL_OP when you want to let Perl take back the control for that file
 
@@ -980,6 +983,8 @@ Available functions are:
 
 
 All of these functions take some optional arguments to set: uid, gid, perms, dev, ino, nlink, rdev, size, atime, mtime, ctime, blksize, blocks.
+C<uid> and C<gid> accept both numeric IDs and names (e.g., C<< gid => 'root' >>).
+Unknown option keys will cause a fatal error to catch typos early.
 Example:
 
     use Overload::FileCheck -from-stat => \&my_stat, q{:check};
@@ -1059,7 +1064,7 @@ mock_stat provides one interface to setup a hook for all C<stat> and C<lstat> ca
 It's slighly different than the other mock functions. As the first argument passed to
 the hook function would be a string 'stat' or 'lstat'.
 
-You can get a more advanced hook sample from L</"Mocking stat">.
+You can get a more advanced hook sample from L</"Mocking stat and lstat">.
 
     use Overload::FileCheck q(:all);
 
@@ -1085,7 +1090,7 @@ By calling unmock_stat, you would disable any previous hook set using mock_stat
 By providing a single hook for 'stat' and 'lstat' you let OverLoad::FileCheck take care
 of mocking all other -X checks.
 
-read L</" Mocking all file checks from a single 'stat' function"> for sample usage.
+read L</"Mocking all file checks from a single 'stat' function"> for sample usage.
 
 =head2 stat_as_directory( %OPTS )
 
@@ -1125,7 +1130,8 @@ view stat_as_directory and L</"Using stat_as_* helpers"> for some sample usages
 
 =head1 Notice
 
-This is a very early development stage and some behavior might change before the release of a more stable build.
+The API is stabilizing but may still evolve in minor ways.  Please report
+issues at the GitHub repository.
 
 =head1 Known Limitations
 
