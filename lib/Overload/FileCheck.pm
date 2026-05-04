@@ -459,6 +459,15 @@ sub unmock_all_file_checks {
 # and trigger the callback function when mocked
 my $_last_call_for;
 
+# Called from XS CLONE to reset Perl-level mock state for the new
+# interpreter.  The XS layer starts each child thread with all ops
+# unmocked (is_mocked = 0), so the Perl-level hash must match.
+sub _clone_init {
+    $_current_mocks = {};
+    undef $_last_call_for;
+    return;
+}
+
 sub _check {
     my ( $optype, $file ) = @_;
 

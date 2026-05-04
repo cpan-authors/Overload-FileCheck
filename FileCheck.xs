@@ -650,6 +650,10 @@ CODE:
             /* is_mocked stays 0 from Newxz */
         }
     }
+    /* Reset Perl-level mock state ($_current_mocks, $_last_call_for)
+     * to match the fresh XS state.  Without this, child threads inherit
+     * stale entries and mock_file_check() croaks "already mocked". */
+    call_pv("Overload::FileCheck::_clone_init", G_DISCARD);
 }
 
 #endif
