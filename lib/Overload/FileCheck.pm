@@ -62,8 +62,10 @@ my @STAT_HELPERS = qw{ stat_as_directory stat_as_file stat_as_symlink
 
 our @EXPORT_OK = (
     qw{
-      mock_all_from_stat
-      mock_all_file_checks mock_file_check mock_file_check_guard mock_stat
+      mock_all_from_stat mock_all_from_stat_guard
+      mock_all_file_checks mock_all_file_checks_guard
+      mock_file_check mock_file_check_guard
+      mock_stat mock_stat_guard
       unmock_file_check unmock_all_file_checks unmock_stat
       },
     @CHECK_STATUS,
@@ -252,6 +254,35 @@ sub mock_file_check_guard {
     ( my $normalized = $check ) =~ s{^-+}{};
 
     return Overload::FileCheck::Guard->new($normalized);
+}
+
+sub mock_stat_guard {
+    my ($sub) = @_;
+
+    mock_stat($sub);
+
+    return Overload::FileCheck::Guard->new( 'stat', 'lstat' );
+}
+
+sub mock_all_file_checks_guard {
+    my ($sub) = @_;
+
+    mock_all_file_checks($sub);
+
+    my @checks = sort grep { $_ ne 'stat' && $_ ne 'lstat' }
+      map { $REVERSE_MAP{$_} } keys %$_current_mocks;
+
+    return Overload::FileCheck::Guard->new(@checks);
+}
+
+sub mock_all_from_stat_guard {
+    my ($sub_for_stat) = @_;
+
+    mock_all_from_stat($sub_for_stat);
+
+    my @checks = sort map { $REVERSE_MAP{$_} } keys %$_current_mocks;
+
+    return Overload::FileCheck::Guard->new(@checks);
 }
 
 sub unmock_file_check {
@@ -1035,6 +1066,52 @@ by guaranteeing cleanup even if the test dies.
   # -e is automatically unmocked here
 
 Call C<< $guard->cancel >> to prevent the automatic unmock.
+
+=head2 mock_stat_guard( CODE )
+
+Like C<mock_stat>, but returns a guard object. When the guard goes out of
+scope, both C<stat> and C<lstat> mocks are automatically removed.
+
+  {
+      my $guard = mock_stat_guard( sub {
+          my ( $op, $file ) = @_;
+          return stat_as_file() if $file eq '/fake';
+          return FALLBACK_TO_REAL_OP;
+      });
+      my @st = stat('/fake');  # mocked
+  }
+  # stat and lstat are automatically unmocked here
+
+=head2 mock_all_file_checks_guard( CODE )
+
+Like C<mock_all_file_checks>, but returns a guard object. When the guard
+goes out of scope, all file check mocks are automatically removed.
+
+  {
+      my $guard = mock_all_file_checks_guard( sub {
+          my ( $check, $file ) = @_;
+          return CHECK_IS_TRUE if $file eq '/fake';
+          return FALLBACK_TO_REAL_OP;
+      });
+      ok( -e '/fake' );  # mocked
+  }
+  # all file checks are automatically unmocked here
+
+=head2 mock_all_from_stat_guard( CODE )
+
+Like C<mock_all_from_stat>, but returns a guard object. When the guard
+goes out of scope, all mocks (file checks, stat, and lstat) are
+automatically removed.
+
+  {
+      my $guard = mock_all_from_stat_guard( sub {
+          my ( $op, $file ) = @_;
+          return stat_as_file( size => 42 ) if $file eq '/fake';
+          return FALLBACK_TO_REAL_OP;
+      });
+      is( -s '/fake', 42 );  # mocked
+  }
+  # everything is automatically unmocked here
 
 =head2 unmock_file_check( $check, [@extra_checks] )
 
