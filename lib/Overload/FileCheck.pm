@@ -62,9 +62,10 @@ my @STAT_HELPERS = qw{ stat_as_directory stat_as_file stat_as_symlink
 
 our @EXPORT_OK = (
     qw{
-      mock_all_from_stat
+      mock_all_from_stat mock_virtual_filesystem
       mock_all_file_checks mock_file_check mock_file_check_guard mock_stat
       unmock_file_check unmock_all_file_checks unmock_stat
+      get_basetime
       },
     @CHECK_STATUS,
     @STAT_T_IX,
@@ -290,6 +291,21 @@ sub mock_all_from_stat {
     mock_stat($sub_for_stat);
 
     return 1;
+}
+
+sub mock_virtual_filesystem {
+    my (%fs) = @_;
+
+    mock_all_from_stat(sub {
+        my ( $op, $file ) = @_;
+
+        return $fs{$file} if defined $file && exists $fs{$file};
+        return FALLBACK_TO_REAL_OP;
+    });
+
+    # All ops (including stat/lstat) are now mocked — the guard
+    # will unmock everything when it goes out of scope.
+    return Overload::FileCheck::Guard->new( keys %MAP_FC_OP );
 }
 
 sub _check_from_stat {
@@ -1086,6 +1102,49 @@ By providing a single hook for 'stat' and 'lstat' you let OverLoad::FileCheck ta
 of mocking all other -X checks.
 
 read L</" Mocking all file checks from a single 'stat' function"> for sample usage.
+
+=head2 mock_virtual_filesystem( %PATH_TO_STAT )
+
+Convenience wrapper around C<mock_all_from_stat> for the common pattern of
+defining a set of mocked files as a hash of path to stat result.  Returns a
+guard object that unmocks everything when it goes out of scope.
+
+    use Overload::FileCheck qw(mock_virtual_filesystem stat_as_file
+                               stat_as_directory);
+
+    {
+        my $guard = mock_virtual_filesystem(
+            '/app/config.yml' => stat_as_file( size => 256 ),
+            '/app/data/'      => stat_as_directory( perms => 0755 ),
+            '/app/missing'    => [],    # file not found
+        );
+
+        ok  -e '/app/config.yml';
+        ok  -f '/app/config.yml';
+        ok  -d '/app/data/';
+        ok !-e '/app/missing';
+        ok  -e $^X;   # real files fall through
+    }
+    # all mocks automatically cleaned up here
+
+Paths not present in the hash fall back to the real filesystem
+(C<FALLBACK_TO_REAL_OP>).  Call C<< $guard->cancel >> to keep the mocks
+active beyond the guard's scope.
+
+=head2 get_basetime()
+
+Returns Perl's C<$^T> (script start time) as seen by the XS layer.
+Useful when constructing timestamps for C<-M>, C<-C>, or C<-A> mocks:
+
+    use Overload::FileCheck qw(get_basetime stat_as_file mock_all_from_stat);
+
+    my $one_day_ago = get_basetime() - 86400;
+    mock_all_from_stat(sub {
+        return stat_as_file( mtime => $one_day_ago ) if $_[1] eq '/old';
+        return FALLBACK_TO_REAL_OP;
+    });
+
+    # -M '/old' is approximately 1.0
 
 =head2 stat_as_directory( %OPTS )
 
