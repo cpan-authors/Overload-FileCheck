@@ -65,6 +65,7 @@ our @EXPORT_OK = (
       mock_all_from_stat
       mock_all_file_checks mock_file_check mock_file_check_guard mock_stat
       unmock_file_check unmock_all_file_checks unmock_stat
+      get_basetime
       },
     @CHECK_STATUS,
     @STAT_T_IX,
@@ -823,14 +824,17 @@ In your callback function you should use the following helpers to return.
 
 =item B<CHECK_IS_FALSE>: use this constant when the test is false
 
-=item B<CHECK_IS_TRUE>: use this when you the test is true
+=item B<CHECK_IS_TRUE>: use this when the test is true
+
+=item B<CHECK_IS_NULL>: use this when the file does not exist or the check is not applicable (returns C<undef> to the caller)
 
 =item B<FALLBACK_TO_REAL_OP>: you want to delegate the answer to Perl itself :-)
 
 =back
 
-It's also possible to return one integer. Checks like C<-s>, C<-M>, C<-C>, C<-A> can return
-any integers.
+It's also possible to return a numeric value. C<-s> returns an integer (file size in bytes).
+C<-M>, C<-C>, and C<-A> return floating-point values (days since modification, inode change,
+or access relative to script start time).
 
 Example:
 
@@ -1001,6 +1005,20 @@ Example:
 
 =head1 Available functions
 
+=head2 mock_all_file_checks( CODE )
+
+Mock all file check operators at once with a single callback function.
+The callback receives the check letter as first argument and the file/handle as second:
+
+  mock_all_file_checks(sub {
+      my ( $check, $file ) = @_;
+      return CHECK_IS_TRUE  if $check eq 'e' && $file eq '/fake';
+      return FALLBACK_TO_REAL_OP;
+  });
+
+Note that C<stat> and C<lstat> are B<not> mocked by this function.
+Use L</"mock_all_from_stat"> to mock everything including stat/lstat.
+
 =head2 mock_file_check( $check, CODE )
 
 mock_file_check function is used to mock one of the filecheck op.
@@ -1059,7 +1077,7 @@ mock_stat provides one interface to setup a hook for all C<stat> and C<lstat> ca
 It's slighly different than the other mock functions. As the first argument passed to
 the hook function would be a string 'stat' or 'lstat'.
 
-You can get a more advanced hook sample from L</"Mocking stat">.
+You can get a more advanced hook sample from L</"Mocking stat and lstat">.
 
     use Overload::FileCheck q(:all);
 
@@ -1085,7 +1103,19 @@ By calling unmock_stat, you would disable any previous hook set using mock_stat
 By providing a single hook for 'stat' and 'lstat' you let OverLoad::FileCheck take care
 of mocking all other -X checks.
 
-read L</" Mocking all file checks from a single 'stat' function"> for sample usage.
+read L</"Mocking all file checks from a single 'stat' function"> for sample usage.
+
+=head2 get_basetime()
+
+Returns C<$^T> (the time at which the script began running, a.k.a. C<PL_basetime>).
+This is the reference point used by C<-M>, C<-C>, and C<-A> to compute file ages.
+
+Useful when building stat arrays with custom timestamps for mocking:
+
+    use Overload::FileCheck qw(:all get_basetime);
+
+    # Mock a file modified 2 days ago
+    stat_as_file( mtime => get_basetime() - 2 * 86400 );
 
 =head2 stat_as_directory( %OPTS )
 
@@ -1123,15 +1153,13 @@ view stat_as_directory and L</"Using stat_as_* helpers"> for some sample usages
 Create a stat array ref for a named pipe (FIFO)
 view stat_as_directory and L</"Using stat_as_* helpers"> for some sample usages
 
-=head1 Notice
-
-This is a very early development stage and some behavior might change before the release of a more stable build.
-
 =head1 Known Limitations
 
-=head2 This is design for Unit Test purpose
+=head2 Designed for unit testing
 
-This code was mainly designed to be used during unit tests. It's far from being optimized at this time.
+This module is designed for use in unit tests. While it works by replacing
+Perl's OP dispatch at the interpreter level, it has not been optimized for
+production-critical hot paths.
 
 =head2 Mock as soon as possible
 
