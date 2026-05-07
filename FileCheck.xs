@@ -447,8 +447,16 @@ PP(pp_overload_stat) { /* stat & lstat */
        * In such a case, we set the statcache, but do not call
        * the real op (CALL_REAL_OP)
       */
-      if ( size < 0 )
+      if ( size < 0 ) {
+        /* Match Perl's real pp_stat: in scalar/void context, push a
+         * defined false value so stat($f) returns !!0 rather than
+         * leaving the stack short (which yields undef).  In list
+         * context the empty stack is correct (empty list). */
+        if (GIMME_V != G_ARRAY) {
+          PUSHs(&PL_sv_no);
+        }
         RETURN;
+      }
 
       PUSHs( MUTABLE_SV( PL_defgv ) ); /* add *_ to the stack */
 
