@@ -60,6 +60,8 @@ my @CHECK_STATUS = qw{CHECK_IS_FALSE CHECK_IS_TRUE CHECK_IS_NULL FALLBACK_TO_REA
 my @STAT_HELPERS = qw{ stat_as_directory stat_as_file stat_as_symlink
   stat_as_socket stat_as_chr stat_as_block stat_as_fifo};
 
+my @INTROSPECTION = qw{ is_mocked get_mocked_checks };
+
 our @EXPORT_OK = (
     qw{
       mock_all_from_stat
@@ -69,6 +71,7 @@ our @EXPORT_OK = (
     @CHECK_STATUS,
     @STAT_T_IX,
     @STAT_HELPERS,
+    @INTROSPECTION,
 );
 
 our %EXPORT_TAGS = (
@@ -452,6 +455,21 @@ sub unmock_all_file_checks {
     return 1 unless scalar @mocks;
 
     return unmock_file_check(@mocks);
+}
+
+sub is_mocked {
+    my ($check) = @_;
+
+    my ( undef, $optype ) = _resolve_check($check);
+
+    return exists $_current_mocks->{$optype} ? 1 : 0;
+}
+
+sub get_mocked_checks {
+    return sort
+      grep { $_ !~ qr{^l?stat$} }
+      map  { $REVERSE_MAP{$_} }
+      keys %$_current_mocks;
 }
 
 # should not be called directly
@@ -1052,6 +1070,28 @@ The leading dash is optional.
 By a simple call to unmock_all_file_checks, you would disable the effect of overriding the
 filecheck OPs. (not that the XS code is still plugged in, but fallback as soon
 as possible to the original OP)
+
+=head2 is_mocked( $check )
+
+Returns true if the given file check operator is currently mocked, false otherwise.
+The leading dash is optional.
+
+    if ( is_mocked('-e') ) {
+        # -e is currently mocked
+    }
+
+This also works for C<stat> and C<lstat>:
+
+    if ( is_mocked('stat') ) { ... }
+
+=head2 get_mocked_checks()
+
+Returns a sorted list of file check operator names (without dash) that are currently
+mocked.  C<stat> and C<lstat> are excluded from the list — use C<is_mocked('stat')>
+to check those.
+
+    my @checks = get_mocked_checks();
+    # e.g. ('B', 'T', 'e', 'f')
 
 =head2 mock_stat( CODE )
 
