@@ -162,6 +162,11 @@ my %DEFAULT_ERRNO = (
 # optype_id => sub
 my $_current_mocks = {};
 
+# Side-channel for text/binary metadata from stat_as_* helpers.
+# Set by _stat_for() when text/binary options are present,
+# read by _check_from_stat() for -T/-B dispatch.
+my $_current_stat_meta;
+
 sub import {
     my ( $class, @args ) = @_;
 
@@ -308,7 +313,16 @@ sub _check_from_stat {
 
     my $stat_or_lstat = $use_lstat ? 'lstat' : 'stat';
 
+    # Save and reset stat metadata so that re-entrant calls
+    # (e.g. nested mock callbacks) don't clobber our value.
+    my $saved_stat_meta = $_current_stat_meta;
+    $_current_stat_meta = undef;
+
     my (@mocked_lstat_result) = $sub_for_stat->( $stat_or_lstat, $f_or_fh );
+
+    # Capture metadata set by stat_as_*() during the callback, then restore.
+    my $meta = $_current_stat_meta;
+    $_current_stat_meta = $saved_stat_meta;
     if (   scalar @mocked_lstat_result == 1
         && !ref $mocked_lstat_result[0]
         && $mocked_lstat_result[0] == FALLBACK_TO_REAL_OP ) {
@@ -355,10 +369,19 @@ sub _check_from_stat {
         g => sub { _xs_unmock_op($optype); _to_bool( scalar -g _ ) },    # setgid bit
         k => sub { _xs_unmock_op($optype); _to_bool( scalar -k _ ) },    # sticky bit
 
-        # Heuristic text/binary checks (use glob _ to pass the cached stat)
-        T => sub { return CHECK_IS_NULL unless @stat; _xs_unmock_op($optype); _to_bool( scalar -T *_ ) },   # ASCII or UTF-8 text (heuristic)
-        B => sub {                                                         # binary file (opposite of -T)
+        # Heuristic text/binary checks.
+        # When stat_as_*() was called with text/binary options, use those
+        # directly instead of delegating to Perl's heuristic (which reads
+        # file content that doesn't exist for mocked files).
+        T => sub {
+            return CHECK_IS_NULL unless @stat;
+            return _to_bool( $meta->{text} ) if $meta && defined $meta->{text};
+            _xs_unmock_op($optype);
+            _to_bool( scalar -T *_ );
+        },
+        B => sub {
             return CHECK_IS_NULL unless @stat;                             # file not found
+            return _to_bool( $meta->{binary} ) if $meta && defined $meta->{binary};
             # Check directory via mode bits directly instead of calling the
             # mocked -d operator, which would trigger a redundant stat callback.
             return CHECK_IS_TRUE if _check_mode_type( $stat[ST_MODE], S_IFDIR ) == CHECK_IS_TRUE;
@@ -625,6 +648,19 @@ sub stat_as_fifo {
 
 sub _stat_for {
     my ( $type, $opts ) = @_;
+
+    # Extract text/binary metadata before option validation.
+    # These options control -T/-B behavior in mock_all_from_stat
+    # and are not part of the stat struct itself.
+    my $text   = delete $opts->{text};
+    my $binary = delete $opts->{binary};
+
+    if ( defined $text || defined $binary ) {
+        $_current_stat_meta = {
+            text   => $text   // ( defined $binary ? !$binary : undef ),
+            binary => $binary // ( defined $text   ? !$text   : undef ),
+        };
+    }
 
     my @stat = ( (0) x STAT_T_MAX );
 
@@ -980,6 +1016,21 @@ Available functions are:
 
 
 All of these functions take some optional arguments to set: uid, gid, perms, dev, ino, nlink, rdev, size, atime, mtime, ctime, blksize, blocks.
+
+=head3 text / binary options
+
+When using C<mock_all_from_stat>, the C<-T> and C<-B> file checks normally rely on Perl's
+content-based heuristic, which cannot work for files that don't actually exist on disk.
+To control the result of C<-T> and C<-B> for mocked files, pass C<text> or C<binary> options
+to any C<stat_as_*> helper:
+
+    return stat_as_file( size => 100, text => 1 );    # -T true,  -B false
+    return stat_as_file( size => 100, binary => 1 );   # -T false, -B true
+    return stat_as_file( size => 100, text => 0 );     # -T false, -B true
+
+Specifying one option automatically infers the other (they are complementary).
+When neither option is given, C<-T>/C<-B> fall back to Perl's built-in heuristic as before.
+
 Example:
 
     use Overload::FileCheck -from-stat => \&my_stat, q{:check};
@@ -1141,8 +1192,18 @@ You probably want to load and call the mock function of Overload::FileCheck as e
 =head2 -B and -T are using heuristics
 
 File check operators like -B and -T are using heuristics to guess if the file content is binary or text.
-By using mock_all_from_stat or ('-from-stat' at import time), we cannot provide an accurate -B or -T checks.
-You would need to provide a custom hooks for them
+By using mock_all_from_stat or ('-from-stat' at import time), the default behavior cannot provide accurate
+-B or -T checks for files that don't exist on disk.
+
+B<Recommended>: pass C<text> or C<binary> options to C<stat_as_*> helpers:
+
+    return stat_as_file( text => 1 );    # -T true, -B false
+    return stat_as_file( binary => 1 );  # -T false, -B true
+
+Alternatively, provide custom hooks for -T and -B:
+
+    mock_file_check( '-B' => sub { ... } );
+    mock_file_check( '-T' => sub { ... } );
 
 =head1 LICENSE
 
