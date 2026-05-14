@@ -1123,15 +1123,13 @@ view stat_as_directory and L</"Using stat_as_* helpers"> for some sample usages
 Create a stat array ref for a named pipe (FIFO)
 view stat_as_directory and L</"Using stat_as_* helpers"> for some sample usages
 
-=head1 Notice
-
-This is a very early development stage and some behavior might change before the release of a more stable build.
-
 =head1 Known Limitations
 
-=head2 This is design for Unit Test purpose
+=head2 Designed for unit testing
 
-This code was mainly designed to be used during unit tests. It's far from being optimized at this time.
+This module is designed for use in test suites.  While it works reliably, runtime
+performance is not optimized — the Perl↔XS callback round-trip adds overhead
+that is negligible in tests but would matter in hot loops.
 
 =head2 Mock as soon as possible
 
