@@ -63,7 +63,7 @@ my @STAT_HELPERS = qw{ stat_as_directory stat_as_file stat_as_symlink
 our @EXPORT_OK = (
     qw{
       mock_all_from_stat
-      mock_all_file_checks mock_file_check mock_file_check_guard mock_stat
+      mock_all_file_checks mock_file_check mock_file_check_guard mock_file_checks_guard mock_stat
       unmock_file_check unmock_all_file_checks unmock_stat
       },
     @CHECK_STATUS,
@@ -252,6 +252,24 @@ sub mock_file_check_guard {
     ( my $normalized = $check ) =~ s{^-+}{};
 
     return Overload::FileCheck::Guard->new($normalized);
+}
+
+sub mock_file_checks_guard {
+    my (@args) = @_;
+
+    Carp::croak(q[mock_file_checks_guard requires an even number of arguments (check => CODE pairs)])
+        if @args % 2;
+    Carp::croak(q[mock_file_checks_guard requires at least one check => CODE pair])
+        unless @args;
+
+    my @mocked_checks;
+    while ( my ( $check, $sub ) = splice( @args, 0, 2 ) ) {
+        mock_file_check( $check, $sub );
+        ( my $normalized = $check ) =~ s{^-+}{};
+        push @mocked_checks, $normalized;
+    }
+
+    return Overload::FileCheck::Guard->new(@mocked_checks);
 }
 
 sub unmock_file_check {
@@ -1035,6 +1053,28 @@ by guaranteeing cleanup even if the test dies.
   # -e is automatically unmocked here
 
 Call C<< $guard->cancel >> to prevent the automatic unmock.
+
+=head2 mock_file_checks_guard( check1 => CODE1, check2 => CODE2, ... )
+
+Mock multiple file checks at once and return a single guard object that
+unmocks all of them when it goes out of scope.  This is a convenience
+wrapper around C<mock_file_check> for the common case where you need to
+set up several mocks and want a single cleanup point.
+
+  {
+      my $guard = mock_file_checks_guard(
+          '-e' => sub { CHECK_IS_TRUE },
+          '-f' => sub { CHECK_IS_TRUE },
+          '-d' => sub { CHECK_IS_FALSE },
+      );
+      ok(  -e "/fake/file", "exists" );
+      ok(  -f "/fake/file", "is a file" );
+      ok( !-d "/fake/file", "not a directory" );
+  }
+  # -e, -f, and -d are all automatically unmocked here
+
+Requires at least one check/CODE pair.  Croaks if the number of arguments
+is odd or if any check is already mocked.
 
 =head2 unmock_file_check( $check, [@extra_checks] )
 
