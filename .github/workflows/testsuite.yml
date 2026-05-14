@@ -1,4 +1,4 @@
-name: linux
+name: testsuite
 
 on:
   push:
@@ -27,6 +27,22 @@ jobs:
         uses: perl-actions/install-with-cpm@v1
         with:
           cpanfile: "cpanfile"
+      - run: perl Makefile.PL
+      - run: make
+      - run: make test
+
+  macos:
+    runs-on: macos-latest
+
+    env:
+      PERL_USE_UNSAFE_INC: 0
+
+    steps:
+      - uses: actions/checkout@v6
+      - run: perl -V
+      - name: Install Dependencies
+        run: |
+          curl -fsSL --compressed https://raw.githubusercontent.com/skaji/cpm/main/cpm | perl - install -g --show-build-log-on-failure
       - run: perl Makefile.PL
       - run: make
       - run: make test
