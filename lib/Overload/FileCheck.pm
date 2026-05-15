@@ -235,7 +235,16 @@ sub mock_file_check {
     Carp::croak(q[Second arg must be a CODE ref]) unless ref $sub eq 'CODE';
 
     my ( $name, $optype ) = _resolve_check($check);
-    Carp::croak(qq[-$name is already mocked by Overload::FileCheck]) if exists $_current_mocks->{$optype};
+
+    if ( exists $_current_mocks->{$optype} ) {
+        # In ithreads, the Perl hash may carry stale entries from the
+        # parent thread while the XS layer has already reset is_mocked.
+        # Check the actual XS state before croaking.
+        if ( _xs_is_mocked($optype) ) {
+            Carp::croak(qq[-$name is already mocked by Overload::FileCheck]);
+        }
+        delete $_current_mocks->{$optype};
+    }
 
     $_current_mocks->{$optype} = $sub;
 
@@ -458,15 +467,6 @@ sub unmock_all_file_checks {
 # this is called from XS to check if one OP is mocked
 # and trigger the callback function when mocked
 my $_last_call_for;
-
-# Called from XS CLONE to reset Perl-level mock state for the new
-# interpreter.  The XS layer starts each child thread with all ops
-# unmocked (is_mocked = 0), so the Perl-level hash must match.
-sub _clone_init {
-    $_current_mocks = {};
-    undef $_last_call_for;
-    return;
-}
 
 sub _check {
     my ( $optype, $file ) = @_;
