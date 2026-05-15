@@ -52,7 +52,10 @@ START_MY_CXT
 #define RETURN_CALL_REAL_OP_IF_CALL_WITH_DEFGV() STMT_START { \
     if (gl_overload_ft->op[OP_STAT].is_mocked) { \
       SV *arg = *PL_stack_sp; GV *gv; \
-      if ( SvTYPE(arg) == SVt_PVAV ) arg = arg + AvMAX( arg ); \
+      /* An AV on the argument stack is an internal Perl edge case   \
+       * (observed on some optree layouts).  We cannot meaningfully   \
+       * extract a GV from it, so fall back to the real OP.          */ \
+      if ( SvTYPE(arg) == SVt_PVAV ) { return CALL_REAL_OP(); } \
       if ( PL_op->op_flags & OPf_REF ) \
         gv = cGVOP_gv; \
       else { \
