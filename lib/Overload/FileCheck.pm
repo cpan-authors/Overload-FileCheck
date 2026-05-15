@@ -235,7 +235,16 @@ sub mock_file_check {
     Carp::croak(q[Second arg must be a CODE ref]) unless ref $sub eq 'CODE';
 
     my ( $name, $optype ) = _resolve_check($check);
-    Carp::croak(qq[-$name is already mocked by Overload::FileCheck]) if exists $_current_mocks->{$optype};
+
+    if ( exists $_current_mocks->{$optype} ) {
+        # In ithreads, the Perl hash may carry stale entries from the
+        # parent thread while the XS layer has already reset is_mocked.
+        # Check the actual XS state before croaking.
+        if ( _xs_is_mocked($optype) ) {
+            Carp::croak(qq[-$name is already mocked by Overload::FileCheck]);
+        }
+        delete $_current_mocks->{$optype};
+    }
 
     $_current_mocks->{$optype} = $sub;
 

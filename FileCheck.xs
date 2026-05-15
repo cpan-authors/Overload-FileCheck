@@ -532,6 +532,27 @@ mock_op(optype)
      RETVAL
 
 
+int
+_xs_is_mocked(optype)
+     SV* optype;
+CODE:
+{
+     dMY_CXT;
+     int opid;
+
+     if ( ! SvIOK(optype) )
+       croak("first argument to _xs_is_mocked must be one integer");
+
+     opid = SvIV( optype );
+     if ( !opid || opid < 0 || opid >= OP_MAX )
+         croak( "Invalid opid value %d", opid );
+
+     RETVAL = gl_overload_ft->op[opid].is_mocked;
+}
+OUTPUT:
+    RETVAL
+
+
 SV*
 get_basetime()
 CODE:
@@ -650,6 +671,10 @@ CODE:
             /* is_mocked stays 0 from Newxz */
         }
     }
+    /* Perl-level state ($_current_mocks) is reset lazily in
+     * mock_file_check() via _xs_is_mocked() check, rather than
+     * here, because call_pv() during CLONE is unreliable on
+     * some Perl builds. */
 }
 
 #endif
